@@ -109,8 +109,8 @@ Zatím se jede se zástupnými hodnotami (`"_placeholder": true`):
 - [ ] Ceník a příplatky (cena za m², příplatek za barvy, za tvar podle motivu, minimální cena).
       Počítá se kruh/ovál/kontura podle skutečné plochy, nebo opsaného obdélníku?
 - [x] Minimální vytuftovatelný detail: 10 mm potvrzeno.
-- [ ] Minimální šířka linky (obočí, oční linky, obrysy) – zástupně 5 mm.
-- [ ] Maximální počet barev – teď 12; portréty by zvládly víc (např. 16).
+- [x] Minimální šířka linky: 5 mm potvrzeno.
+- [x] Maximální počet barev: 16 potvrzeno.
 - [ ] Min./max. rozměry koberce a maximální okraj kolem motivu.
 - [ ] Endpoint nebo e-mail pro poptávky (Formspree?).
 - [ ] Kam přesně se konfigurátor vloží na urug.cz (kvůli iframe a CSP/`frame-ancestors`).

@@ -8,7 +8,7 @@
   },
   "colors": {
     "min": 2,
-    "max": 12,
+    "max": 16,
     "default": 5
   },
   "size": {

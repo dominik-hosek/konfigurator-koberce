@@ -70,7 +70,7 @@ every session and update it at the end of every phase.
 ```
 file → decode + downscale (≤1024 px)
      → background mask (alpha channel, or click-picked colour + tolerance)
-     → colour quantization (k-means++, 2–12 colours, foreground pixels only), weighted by
+     → colour quantization (k-means++, 2–16 colours (limits.json), foreground pixels only), weighted by
        per-pixel importance (local detail density + skin-tone boost) so faces get shades
      → map clusters to yarns (CIEDE2000, distinct yarns preferred) + manual overrides
      → layout (lib/geometry/layout.ts): 'crop' for full-bleed images, 'enclose' + margin
