@@ -48,6 +48,10 @@ every session and update it at the end of every phase.
   Money in **CZK, integers** (whole crowns). Colours internally as sRGB `[r, g, b]`
   0–255; perceptual comparisons in CIELAB using CIEDE2000.
 - Images are processed at max ~1024 px on the longer side. Final render can upscale.
+- Palette indices are `Uint8Array` per pixel; `TRANSPARENT_INDEX` (255) marks background.
+- Quantization: 5-bit-per-channel histogram (bins keep their mean colour), then weighted
+  k-means++ in Lab with a fixed seed. Histogram and per-colour-count results are cached
+  in the worker.
 - Worker messages are typed discriminated unions in `src/workers/protocol.ts`.
 - React state: a single reducer for the configuration (`src/state`), derived values
   (price, spec) computed with selectors, not stored.
@@ -90,14 +94,16 @@ src/
   config/                      yarns.json, pricing.json, limits.json, inquiry.json
                                + index.ts (types, validation, typed access)
   strings/cs.ts                all Czech UI copy
-  lib/                         pure, tested logic (no DOM)
+  lib/                         pure, tested logic (no DOM; enforced by ESLint)
+    random.ts                  seeded PRNG (results must be deterministic)
     color/                     srgb↔lab, deltaE (CIEDE2000), kmeans, palette mapping
     image/                     downscale math, background mask, smoothing, contour/shape
     geometry/                  dimensions, aspect ratio, mm↔px
     pricing/                   price calculation
     spec/                      inquiry JSON spec builder
   workers/                     processor.worker.ts, protocol.ts
-  render/                      flat.ts, tufted.ts (canvas drawing from buffers)
+  render/                      browser canvas I/O: loadImage.ts (decode + downscale),
+                               flat.ts, tufted.ts (drawing finished buffers)
   state/                       reducer, actions, selectors
   hooks/                       useProcessor, useAutoHeight (iframe postMessage)
   components/                  UI: Upload, Background, Colors, Shape, Size, Preview,

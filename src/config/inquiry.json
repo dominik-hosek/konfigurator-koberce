@@ -1,0 +1,5 @@
+{
+  "_placeholder": true,
+  "_comment": "Form service endpoint that receives inquiries (e.g. Formspree).",
+  "endpoint": "https://formspree.io/f/REPLACE_ME"
+}

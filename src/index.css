@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --color-ink: #1c1917;
+  --color-muted: #78716c;
+  --color-line: #e7e5e4;
+  --color-paper: #fafaf9;
+  --color-accent: #44403c;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-stone-800;
+  }
+}
+
+/* Native range input with a neutral, finger-friendly look. */
+@layer components {
+  .range {
+    @apply h-11 w-full cursor-pointer appearance-none bg-transparent;
+  }
+  .range::-webkit-slider-runnable-track {
+    @apply h-1.5 rounded-full bg-stone-200;
+  }
+  .range::-moz-range-track {
+    @apply h-1.5 rounded-full bg-stone-200;
+  }
+  .range::-webkit-slider-thumb {
+    @apply -mt-[7px] size-5 appearance-none rounded-full border-2 border-white bg-stone-800 shadow;
+  }
+  .range::-moz-range-thumb {
+    @apply size-5 rounded-full border-2 border-white bg-stone-800 shadow;
+  }
+  /* Focus ring on the thumb instead of a box around the whole track. */
+  .range:focus-visible {
+    @apply outline-none;
+  }
+  .range:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 3px var(--color-paper),
+      0 0 0 5px var(--color-stone-800);
+  }
+  .range:focus-visible::-moz-range-thumb {
+    box-shadow:
+      0 0 0 3px var(--color-paper),
+      0 0 0 5px var(--color-stone-800);
+  }
+  .range:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+}

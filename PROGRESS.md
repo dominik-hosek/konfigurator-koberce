@@ -9,15 +9,26 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
   - Vytvořen `CLAUDE.md` (stack, pravidla, konvence, pipeline zpracování, struktura složek).
   - Vytvořen tento `PROGRESS.md`.
 
+- **Fáze 1 – scaffold, nahrání, redukce barev, plochý náhled** (2026-10-05)
+  - Vite 8 + React 19 + TypeScript 6 (strict) + Tailwind 4, ESLint 9 (vč. jsx-a11y
+    a hlídání, že `src/lib` nesahá na DOM), Prettier, Vitest.
+  - Konfigurace v `src/config/*.json` (paleta přízí, ceník, limity, endpoint) se zástupnými
+    hodnotami a validací při startu (`src/config/schema.ts`).
+  - Nahrání obrázku: drag & drop, výběr souboru, tlačítko „Vyfotit“ na dotykových zařízeních;
+    kontrola formátu (JPG/PNG/WebP, i podle přípony) a velikosti; zmenšení na ≤1024 px.
+  - Web Worker: histogram barev → vážený k-means++ v Lab (2–12 barev) → index barvy pro každý
+    pixel → plochý náhled. Průběh se ukazuje progress barem a textem, starší požadavky se
+    při tažení posuvníkem zahazují, mezivýsledky se cachují.
+  - Průhledné pixely PNG se už teď berou jako pozadí (nejsou součástí koberce).
+  - UI: přepínač Návrh / Původní, posuvník počtu barev, seznam barev s podílem plochy.
+  - 29 unit testů (převod barev, k-means, kvantizace, validace uploadu, konfigurace, reducer).
+
 ## Rozpracováno
 
 - nic
 
 ## Další kroky
 
-- [ ] **Fáze 1** – scaffold (Vite + React + TS + Tailwind, ESLint, Vitest), konfigurační
-      JSONy se zástupnými hodnotami, nahrání obrázku (drag & drop, soubor, fotoaparát),
-      zmenšení na ≤1024 px, Web Worker s průběhem, k-means redukce barev (2–12), plochý náhled.
 - [ ] **Fáze 2** – mapování na paletu přízí (Lab, CIEDE2000), ruční přepínání přízí,
       odstranění pozadí (alfa / klik + tolerance), vyhlazení detailů.
 - [ ] **Fáze 3** – tvary (obdélník, kruh, ovál, podle motivu), rozměry, kalkulace ceny.
@@ -25,6 +36,12 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
 - [ ] **Fáze 5** – poptávkový formulář, export PNG.
 - [ ] **Fáze 6** – responzivita, iframe embed s automatickou výškou, deploy na GitHub
       Pages, README s návodem na úpravu cen a palety.
+
+## Poznámky pro další fáze
+
+- Vyhlazené hrany loga (anti-aliasing) vytvářejí drobné přechodové barvy (~0,5 % plochy).
+  Řeší je Fáze 2 (vyhlazení detailů) – případně je při mapování na přízi sloučíme.
+- Formát HEIC (iPhone) prohlížeče neumí dekódovat; při focení přes „Vyfotit“ iOS posílá JPEG.
 
 ## Otevřené otázky
 

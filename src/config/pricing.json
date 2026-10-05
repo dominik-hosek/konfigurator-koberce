@@ -1,0 +1,10 @@
+{
+  "_placeholder": true,
+  "_comment": "All amounts in CZK incl. VAT, whole crowns. Indicative 'price from'.",
+  "currency": "CZK",
+  "pricePerM2": 8900,
+  "includedColors": 3,
+  "pricePerExtraColor": 400,
+  "contourShapeSurcharge": 1500,
+  "minimumPrice": 3900
+}
