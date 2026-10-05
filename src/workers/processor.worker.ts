@@ -21,6 +21,7 @@ import { detailImportance } from '../lib/image/importance'
 import { indexedToRgba } from '../lib/image/indexed'
 import { measureMotif } from '../lib/image/motif'
 import { smoothDetailsSteps } from '../lib/image/smoothing'
+import { renderTuftedSteps } from '../lib/image/tufted'
 import type { ProcessingStage, ProcessSettings, WorkerRequest, WorkerResponse } from './protocol'
 
 // The app tsconfig uses DOM typings; describe the bits of the worker scope we use.
@@ -159,10 +160,10 @@ async function run(req: ProcessRequest) {
   // 6. Final design + flat preview.
   report('rendering')(0)
   const summary = summarizeLabels(smoothed.labels, layer.codes)
-  const preview = indexedToRgba(
-    summary.indices,
-    summary.yarns.map((y) => yarnByCode.get(y.code)!.rgb),
-  )
+  const colors = summary.yarns.map((y) => yarnByCode.get(y.code)!.rgb)
+  const preview = indexedToRgba(summary.indices, colors)
+  // The flat result's buffers are transferred away; keep what the texture pass needs.
+  const textureIndices = summary.indices.slice()
 
   post(
     {
@@ -198,6 +199,32 @@ async function run(req: ProcessRequest) {
       },
     },
     [summary.indices.buffer, preview.buffer],
+  )
+
+  // 7. Tufted look. The flat preview is already on screen; this refines it and is abandoned
+  //    as soon as a newer request arrives.
+  const textureProgress = report('texture')
+  const textureSteps = renderTuftedSteps({
+    indices: textureIndices,
+    width: rug.width,
+    height: rug.height,
+    colors,
+    pxPerMm: layout.pxPerMm,
+  })
+  let textureStep = textureSteps.next()
+  while (!textureStep.done) {
+    textureProgress(textureStep.value)
+    await checkpoint()
+    textureStep = textureSteps.next()
+  }
+  const texture = textureStep.value
+  post(
+    {
+      type: 'textured',
+      requestId: req.requestId,
+      texture: { imageId: img.id, ...texture },
+    },
+    [texture.pixels.buffer],
   )
 }
 

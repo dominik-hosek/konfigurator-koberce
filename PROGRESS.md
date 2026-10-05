@@ -73,13 +73,25 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
   - Ověřeno na portrétu (NASA, public domain): oči, nos, úsměv a stínování obličeje zůstanou.
   - 116 unit testů.
 
+- **Fáze 4 – tuftovaný vzhled náhledu** (2026-10-05)
+  - Nový výchozí pohled „Tuftovaný“ (dále „Plochý“ a „Původní“). Procedurální, bez obrázků
+    a bez AI: vlas jako buňky na skutečné rozteči tuftů (4 mm, řady posunuté o půl tuftu),
+    mírná variace jasu tuftů a vláken, žlábky na hranách barevných ploch se stínováním
+    (světlo zleva shora), organicky zvlněné hrany mezi barvami; obrys koberce zůstává čistý.
+  - Kalibrace: rovná plocha má přesně barvu příze, tmavnou jen žlábky a svahy.
+  - Počítá se ve workeru až po plochém náhledu (ten je vidět hned), jde přerušit novější
+    změnou, má vlastní průběh („Dokresluji vzhled vlasu…“). Logo ~1 s, portrét ~1,5 s navíc.
+  - Náhled se kreslí v rozlišení displeje s kvalitním zmenšením (bez moaré na mobilu);
+    „Zobrazit detail“ ukáže texturu v plném rozlišení se scrollováním, vycentrovaně.
+  - Poznámka pod náhledem: „Náhled je ilustrační…“.
+  - 121 unit testů.
+
 ## Rozpracováno
 
 - nic
 
 ## Další kroky
 
-- [ ] **Fáze 4** – tuftovaný vzhled náhledu.
 - [ ] **Fáze 5** – poptávkový formulář, export PNG.
 - [ ] **Fáze 6** – responzivita, iframe embed s automatickou výškou, deploy na GitHub
       Pages, README s návodem na úpravu cen a palety.

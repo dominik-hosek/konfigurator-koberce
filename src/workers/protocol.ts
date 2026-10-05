@@ -3,7 +3,8 @@ import type { Rgb } from '../lib/color/convert'
 import type { MotifMetrics, RugLayout, ShapeSettings } from '../lib/geometry/layout'
 import type { BackgroundSettings, ResolvedBackgroundMode } from '../lib/image/background'
 
-export type ProcessingStage = 'background' | 'histogram' | 'clustering' | 'smoothing' | 'rendering'
+export type ProcessingStage =
+  'background' | 'histogram' | 'clustering' | 'smoothing' | 'rendering' | 'texture'
 
 /** Everything that determines the processed design. */
 export interface ProcessSettings {
@@ -86,7 +87,18 @@ export interface ProcessResult {
   smoothedPixels: number
 }
 
+/** Tufted-look preview, rendered after the flat result of the same request. */
+export interface TextureResult {
+  imageId: number
+  width: number
+  height: number
+  /** Output pixels per rug-grid pixel. */
+  scale: number
+  pixels: Uint8ClampedArray
+}
+
 export type WorkerResponse =
   | { type: 'progress'; requestId: number; stage: ProcessingStage; fraction: number }
   | { type: 'processed'; requestId: number; result: ProcessResult }
+  | { type: 'textured'; requestId: number; texture: TextureResult }
   | { type: 'error'; requestId: number; message: string }

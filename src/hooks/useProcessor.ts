@@ -4,6 +4,7 @@ import type {
   ProcessingStage,
   ProcessResult,
   ProcessSettings,
+  TextureResult,
   WorkerRequest,
   WorkerResponse,
 } from '../workers/protocol'
@@ -15,6 +16,10 @@ export interface ProcessorState {
   progress: number
   /** Last finished result; kept while a newer request is running so the preview doesn't blink. */
   result: ProcessResult | null
+  /** Tufted look of `result`; null until it has been rendered. */
+  texture: TextureResult | null
+  /** Progress 0..1 of the tufted look being rendered, null when idle. */
+  textureProgress: number | null
   error: string | null
 }
 
@@ -25,6 +30,7 @@ const STAGE_RANGES: Record<ProcessingStage, [number, number]> = {
   clustering: [0.2, 0.45],
   smoothing: [0.45, 0.95],
   rendering: [0.95, 1],
+  texture: [0, 1], // reported separately, after the flat result
 }
 
 const initial: ProcessorState = {
@@ -32,6 +38,8 @@ const initial: ProcessorState = {
   stage: null,
   progress: 0,
   result: null,
+  texture: null,
+  textureProgress: null,
   error: null,
 }
 
@@ -55,13 +63,29 @@ export function useProcessor() {
       if (msg.requestId !== latestRequest.current) return
       switch (msg.type) {
         case 'progress': {
+          if (msg.stage === 'texture') {
+            setState((s) => ({ ...s, textureProgress: msg.fraction }))
+            break
+          }
           const [from, to] = STAGE_RANGES[msg.stage]
           const progress = from + (to - from) * msg.fraction
           setState((s) => ({ ...s, stage: msg.stage, progress: Math.max(s.progress, progress) }))
           break
         }
         case 'processed':
-          setState({ status: 'done', stage: null, progress: 1, result: msg.result, error: null })
+          // The tufted look of the previous design no longer matches; it follows shortly.
+          setState({
+            status: 'done',
+            stage: null,
+            progress: 1,
+            result: msg.result,
+            texture: null,
+            textureProgress: 0,
+            error: null,
+          })
+          break
+        case 'textured':
+          setState((s) => ({ ...s, texture: msg.texture, textureProgress: null }))
           break
         case 'error':
           setState((s) => ({ ...s, status: 'error', stage: null, error: msg.message }))

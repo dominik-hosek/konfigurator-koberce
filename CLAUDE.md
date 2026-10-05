@@ -78,7 +78,9 @@ file → decode + downscale (≤1024 px)
      → compose rug grid (background fill yarn inside, CUT outside the shape)
      → detail smoothing on the rug grid (CUT is ignored, so outlines stay smooth):
        lines < minLineWidthMm removed by opening, islands < a minDetailMm dot absorbed
-     → render: flat preview | tufted preview (procedural pile texture, noise, edge shading)
+     → render: flat preview, then tufted preview (lib/image/tufted.ts: cellular pile on the
+       real tuft pitch, edge grooves from a distance transform, normal-map lighting) — sent
+       as a separate 'textured' message so the flat result shows immediately
 ```
 
 Each stage caches its output; changing a later setting must not recompute earlier stages.
@@ -112,7 +114,7 @@ src/
     spec/                      inquiry JSON spec builder
   workers/                     processor.worker.ts, protocol.ts
   render/                      browser canvas I/O: loadImage.ts (decode + downscale),
-                               flat.ts, tufted.ts (drawing finished buffers)
+                               flat.ts (drawing finished buffers, display-res downscale)
   state/                       reducer, actions, selectors
   hooks/                       useProcessor, useAutoHeight (iframe postMessage)
   components/                  UI: Upload, Background, Colors, Shape, Size, Preview,

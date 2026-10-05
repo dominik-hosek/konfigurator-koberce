@@ -137,9 +137,11 @@ export const cs = {
   preview: {
     title: 'Náhled',
     viewLabel: 'Zobrazení náhledu',
-    design: 'Návrh',
+    tufted: 'Tuftovaný',
+    flat: 'Plochý',
     original: 'Původní',
     canvasLabel: 'Náhled návrhu koberce',
+    tuftedLabel: 'Náhled koberce s texturou vlasu',
     originalLabel: 'Původní nahraný obrázek',
     pickLabel: 'Klikněte na pozadí obrázku',
     stages: {
@@ -148,7 +150,13 @@ export const cs = {
       clustering: 'Zjednodušuji barvy…',
       smoothing: 'Vyhlazuji drobné detaily…',
       rendering: 'Vykresluji náhled…',
+      texture: 'Dokresluji vzhled vlasu…',
     } satisfies Record<ProcessingStage, string>,
+    textureProgressLabel: 'Průběh vykreslení vzhledu vlasu',
+    zoomIn: 'Zobrazit detail',
+    zoomOut: 'Zobrazit celý koberec',
+    tuftedNote:
+      'Náhled je ilustrační – skutečný koberec se může mírně lišit odstínem i strukturou.',
     working: 'Zpracovávám…',
     progressLabel: 'Průběh zpracování',
     error: 'Při zpracování se něco pokazilo. Zkuste to prosím znovu nebo nahrajte jiný obrázek.',
