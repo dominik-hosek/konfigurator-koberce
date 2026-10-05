@@ -70,4 +70,26 @@ describe('smoothDetails', () => {
     expect(progress.at(-1)).toBe(1)
     expect(progress).toEqual([...progress].sort((a, b) => a - b))
   })
+
+  it('leaves the ignored label untouched and does not erode against it', () => {
+    // A disk of label 1 on an ignored outside (9); thin wedges of 9 in the corners.
+    const g = grid(21, 21, 9)
+    for (let y = 0; y < 21; y++)
+      for (let x = 0; x < 21; x++)
+        if ((x - 10) ** 2 + (y - 10) ** 2 <= 100) g.labels[y * 21 + x] = 1
+    const before = g.labels.slice()
+    const res = smoothDetails(g.labels, 21, 21, 3, 9)
+    expect(res.changed).toBe(0)
+    expect(Array.from(res.labels)).toEqual(Array.from(before))
+  })
+
+  it('never spreads the ignored label into the rug', () => {
+    const g = grid(20, 20, 0)
+    rect(g, 0, 0, 20, 5, 9) // outside strip
+    rect(g, 5, 5, 2, 2, 1) // speck touching the outside
+    const res = smoothDetails(g.labels, 20, 20, 3, 9)
+    const out = { width: 20, labels: res.labels }
+    expect(at(out, 5, 5)).toBe(0)
+    expect(at(out, 0, 0)).toBe(9)
+  })
 })

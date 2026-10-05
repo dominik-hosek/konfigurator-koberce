@@ -71,8 +71,10 @@ file → decode + downscale (≤1024 px)
      → background mask (alpha channel, or click-picked colour + tolerance)
      → colour quantization (k-means++, 2–12 colours, foreground pixels only)
      → map clusters to nearest yarns (Lab, CIEDE2000) + manual overrides
-     → detail smoothing (remove islands/lines below min detail; depends on real size)
-     → shape mask (rectangle / circle / oval / contour with margin)
+     → layout (lib/geometry/layout.ts): 'crop' for full-bleed images, 'enclose' + margin
+       for motifs with removed background; gives px/mm and the rug frame
+     → compose rug grid (background fill yarn inside, CUT outside the shape)
+     → detail smoothing on the rug grid (CUT is ignored, so outlines stay smooth)
      → render: flat preview | tufted preview (procedural pile texture, noise, edge shading)
 ```
 

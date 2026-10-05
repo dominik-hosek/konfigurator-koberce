@@ -10,8 +10,8 @@ describe('dimensions', () => {
 
   it('computes the smoothing radius from the minimum detail', () => {
     // 1024 px across a 1200 mm rug, 10 mm detail -> 5 mm radius -> ~4.27 px
-    expect(detailRadiusPx(10, 1024, 1200)).toBeCloseTo(4.267, 3)
+    expect(detailRadiusPx(10, pxPerMm(1024, 1200))).toBeCloseTo(4.267, 3)
     // A smaller rug means the same detail covers more pixels.
-    expect(detailRadiusPx(10, 1024, 600)).toBeCloseTo(8.533, 3)
+    expect(detailRadiusPx(10, pxPerMm(1024, 600))).toBeCloseTo(8.533, 3)
   })
 })

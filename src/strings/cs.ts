@@ -13,6 +13,15 @@ const percent = (value: number) =>
 
 const cm = (mm: number) => `${(mm / 10).toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} cm`
 
+const czk = new Intl.NumberFormat('cs-CZ', {
+  style: 'currency',
+  currency: 'CZK',
+  maximumFractionDigits: 0,
+})
+
+const m2 = (value: number) =>
+  `${value.toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`
+
 export const cs = {
   app: {
     title: 'Navrhněte si vlastní koberec',
@@ -23,6 +32,8 @@ export const cs = {
     image: 'Obrázek',
     background: 'Pozadí',
     colors: 'Barvy a příze',
+    shape: 'Tvar a rozměr',
+    price: 'Orientační cena',
   },
   upload: {
     dropTitle: 'Přetáhněte sem obrázek',
@@ -69,6 +80,8 @@ export const cs = {
     changeLabel: (index: number, yarnName: string) =>
       `Změnit přízi pro barvu ${index} (nyní ${yarnName})`,
     restore: 'Vrátit doporučenou',
+    fill: 'Pozadí koberce',
+    fillChangeLabel: (yarnName: string) => `Změnit přízi pozadí koberce (nyní ${yarnName})`,
     custom: 'vlastní volba',
     fewerThanRequested: (n: number) =>
       `Obrázek obsahuje jen ${n} ${plural(n, 'barvu', 'barvy', 'barev')}.`,
@@ -77,6 +90,41 @@ export const cs = {
     merged: 'Některé barvy připadly na stejnou přízi, proto se sloučily.',
     smoothed: (minDetailMm: number, widthMm: number) =>
       `Detaily menší než ${minDetailMm} mm (při šířce koberce ${cm(widthMm)}) jsme zjednodušili, aby šly vytuftovat.`,
+  },
+  shape: {
+    legend: 'Tvar koberce',
+    names: {
+      rectangle: 'Obdélník',
+      circle: 'Kruh',
+      oval: 'Ovál',
+      contour: 'Podle motivu',
+    },
+    contourUnavailable: 'Tvar „podle motivu“ je dostupný po odstranění pozadí.',
+    cropHint: 'Tvar se vyřízne ze středu obrázku.',
+    width: 'Šířka',
+    height: 'Výška',
+    unit: 'cm',
+    range: (minMm: number, maxMm: number) => `${cm(minMm)} – ${cm(maxMm)}`,
+    lockAspect: 'Zachovat poměr stran motivu',
+    heightDerived: 'Výška se dopočítá z poměru stran.',
+    margin: 'Okraj kolem motivu',
+    marginHint: 'Plocha kolem motivu bude z příze pozadí.',
+    marginValue: (mm: number) => cm(mm),
+    summary: (wMm: number, hMm: number, area: number) =>
+      `Koberec ${Math.round(wMm / 10)} × ${Math.round(hMm / 10)} cm · ${m2(area)}`,
+    adjusted: (range: string) =>
+      `Rozměr jsme upravili, aby obě strany byly ve vyráběném rozsahu (${range}).`,
+  },
+  price: {
+    from: 'od',
+    amount: (value: number) => czk.format(value),
+    area: (area: number, perM2: number) => `Plocha ${m2(area)} × ${czk.format(perM2)}/m²`,
+    colors: (extra: number, included: number) =>
+      `Příplatek za ${extra} ${plural(extra, 'barvu', 'barvy', 'barev')} navíc (${included} v ceně)`,
+    contour: 'Příplatek za tvar podle motivu',
+    minimum: (value: number) => `Minimální cena koberce je ${czk.format(value)}.`,
+    note: 'Cena je orientační. Konečnou cenu potvrdíme po posouzení návrhu.',
+    breakdownTitle: 'Rozpis ceny',
   },
   yarnPicker: {
     title: 'Vyberte přízi',

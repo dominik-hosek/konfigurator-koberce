@@ -2,16 +2,18 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { BackgroundPanel } from './components/BackgroundPanel'
 import { ColorsPanel } from './components/ColorsPanel'
 import { PreviewPanel } from './components/PreviewPanel'
+import { PricePanel } from './components/PricePanel'
+import { ShapePanel } from './components/ShapePanel'
 import { UploadPanel } from './components/UploadPanel'
 import { Panel } from './components/ui/Panel'
-import { limitsConfig, usesPlaceholderConfig, yarnConfig } from './config'
+import { limitsConfig, pricingConfig, usesPlaceholderConfig, yarnConfig } from './config'
 import { useProcessor } from './hooks/useProcessor'
 import { prepareYarns } from './lib/color/yarns'
-import { detailRadiusPx } from './lib/geometry/dimensions'
 import { dominantBorderColor, sampleColor } from './lib/image/background'
 import { validateUpload, type UploadError } from './lib/image/upload'
 import { loadImage } from './render/loadImage'
 import { configuratorReducer, initialState } from './state/configurator'
+import { selectPrice } from './state/selectors'
 import { cs } from './strings/cs'
 import type { ProcessSettings } from './workers/protocol'
 
@@ -33,7 +35,8 @@ export default function App() {
   const [detectFailed, setDetectFailed] = useState(false)
   const processor = useProcessor()
   const { process } = processor
-  const { image, colorCount, background, yarnOverrides, widthMm } = state
+  const { image, colorCount, background, yarnOverrides, backgroundYarn } = state
+  const { shape, widthMm, heightMm, marginMm } = state
 
   const settings = useMemo<ProcessSettings | null>(
     () =>
@@ -41,9 +44,20 @@ export default function App() {
         colorCount,
         background,
         yarnOverrides,
-        detailRadiusPx: detailRadiusPx(limitsConfig.minDetailMm, image.imageData.width, widthMm),
+        shape: { shape, widthMm, heightMm, marginMm },
+        backgroundYarn,
       },
-    [image, colorCount, background, yarnOverrides, widthMm],
+    [
+      image,
+      colorCount,
+      background,
+      yarnOverrides,
+      shape,
+      widthMm,
+      heightMm,
+      marginMm,
+      backgroundYarn,
+    ],
   )
 
   // Re-process whenever anything that affects the design changes.
@@ -95,6 +109,7 @@ export default function App() {
   const cancelPick = useCallback(() => setPicking(false), [])
 
   const result = processor.result?.imageId === image?.id ? processor.result : null
+  const price = selectPrice(result, pricingConfig)
   const removedPercent =
     result && background.mode === 'color'
       ? (result.backgroundCount / (result.width * result.height)) * 100
@@ -164,12 +179,28 @@ export default function App() {
                 colorCount={colorCount}
                 result={result}
                 yarns={yarns}
-                widthMm={widthMm}
                 onColorCountChange={(count) =>
                   dispatch({ type: 'colorCountChanged', colorCount: count })
                 }
                 onYarnChange={(cluster, code) => dispatch({ type: 'yarnChanged', cluster, code })}
+                onBackgroundYarnChange={(code) => dispatch({ type: 'backgroundYarnChanged', code })}
               />
+              <ShapePanel
+                step={4}
+                shape={shape}
+                widthMm={widthMm}
+                heightMm={heightMm}
+                marginMm={marginMm}
+                result={result}
+                onShapeChange={(s) => dispatch({ type: 'shapeChanged', shape: s })}
+                onWidthChange={(mm) => dispatch({ type: 'widthChanged', widthMm: mm })}
+                onHeightChange={(mm) => dispatch({ type: 'heightChanged', heightMm: mm })}
+                onAspectLockChange={(locked, current) =>
+                  dispatch({ type: 'aspectLockChanged', locked, heightMm: current })
+                }
+                onMarginChange={(mm) => dispatch({ type: 'marginChanged', marginMm: mm })}
+              />
+              <PricePanel step={5} price={price} />
             </div>
           </div>
         )}

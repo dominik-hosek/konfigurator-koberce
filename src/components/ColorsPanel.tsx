@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { limitsConfig } from '../config'
-import { rgbToHex } from '../lib/color/convert'
+import { rgbToHex, type Rgb } from '../lib/color/convert'
 import type { PreparedYarn } from '../lib/color/yarns'
 import { cs } from '../strings/cs'
 import type { ProcessResult } from '../workers/protocol'
@@ -14,9 +14,64 @@ interface ColorsPanelProps {
   colorCount: number
   result: ProcessResult | null
   yarns: readonly PreparedYarn[]
-  widthMm: number
   onColorCountChange: (count: number) => void
   onYarnChange: (cluster: number, code: string | null) => void
+  onBackgroundYarnChange: (code: string | null) => void
+}
+
+interface YarnRowProps {
+  yarn: PreparedYarn
+  sourceColor: Rgb | null
+  details: ReactNode
+  changeLabel: string
+  custom: boolean
+  onChange: () => void
+  onRestore: () => void
+}
+
+function YarnRow({
+  yarn,
+  sourceColor,
+  details,
+  changeLabel,
+  custom,
+  onChange,
+  onRestore,
+}: YarnRowProps) {
+  return (
+    <li className="border-line flex items-center gap-3 rounded-xl border bg-white p-2 pr-3">
+      {sourceColor && (
+        <span
+          title={`${cs.colors.sourceColor}: ${rgbToHex(sourceColor)}`}
+          aria-hidden="true"
+          className="size-4 shrink-0 rounded-full ring-1 ring-black/10 ring-inset"
+          style={{ backgroundColor: rgbToHex(sourceColor) }}
+        />
+      )}
+      <span
+        aria-hidden="true"
+        className="size-10 shrink-0 rounded-lg ring-1 ring-black/10 ring-inset"
+        style={{ backgroundColor: yarn.hex }}
+      />
+      <div className="min-w-0 flex-1 text-sm leading-tight">
+        <p className="truncate font-medium">{yarn.name}</p>
+        <p className="text-muted text-xs">
+          {details}
+          {custom && <> · {cs.colors.custom}</>}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <button type="button" className={textButton} aria-label={changeLabel} onClick={onChange}>
+          {cs.colors.change}
+        </button>
+        {custom && (
+          <button type="button" className={`${textButton} text-xs`} onClick={onRestore}>
+            {cs.colors.restore}
+          </button>
+        )}
+      </div>
+    </li>
+  )
 }
 
 export function ColorsPanel({
@@ -24,11 +79,11 @@ export function ColorsPanel({
   colorCount,
   result,
   yarns,
-  widthMm,
   onColorCountChange,
   onYarnChange,
+  onBackgroundYarnChange,
 }: ColorsPanelProps) {
-  const [editing, setEditing] = useState<number | null>(null)
+  const [editing, setEditing] = useState<number | 'fill' | null>(null)
   const { min, max } = limitsConfig.colors
   const byCode = new Map(yarns.map((y) => [y.code, y]))
 
@@ -40,7 +95,26 @@ export function ColorsPanel({
   const dropped = [
     ...new Set(clusters.filter((c) => !finalYarns.has(c.yarn)).map((c) => c.yarn)),
   ].flatMap((code) => byCode.get(code)?.name ?? [])
-  const editingCluster = editing !== null ? clusters[editing] : undefined
+  const fill = result?.fill.used ? result.fill : null
+  const fillYarn = fill ? byCode.get(fill.yarn) : undefined
+
+  const picker =
+    editing === 'fill' && fill
+      ? {
+          sourceColor: fill.sourceColor,
+          current: fill.yarn,
+          recommended: fill.autoYarn,
+          select: (code: string) => onBackgroundYarnChange(code === fill.autoYarn ? null : code),
+        }
+      : typeof editing === 'number' && clusters[editing]
+        ? {
+            sourceColor: clusters[editing].color,
+            current: clusters[editing].yarn,
+            recommended: clusters[editing].autoYarn,
+            select: (code: string) =>
+              onYarnChange(editing, code === clusters[editing]!.autoYarn ? null : code),
+          }
+        : null
 
   return (
     <Panel step={step} title={cs.steps.colors}>
@@ -55,61 +129,45 @@ export function ColorsPanel({
 
       {result && clusters.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3 flex items-baseline justify-between gap-4">
-            <h3 className="text-sm font-medium">{cs.colors.paletteTitle}</h3>
-          </div>
+          <h3 className="mb-3 text-sm font-medium">{cs.colors.paletteTitle}</h3>
           <p className="mb-3 text-sm">{cs.colors.yarnSummary(result.yarns.length)}</p>
 
           <ul className="flex flex-col gap-2">
             {clusters.map((cluster, i) => {
               const yarn = byCode.get(cluster.yarn)
               if (!yarn || !finalYarns.has(cluster.yarn)) return null
-              const custom = cluster.yarn !== cluster.autoYarn
               return (
-                <li
+                <YarnRow
                   key={i}
-                  className="border-line flex items-center gap-3 rounded-xl border bg-white p-2 pr-3"
-                >
-                  <span
-                    title={`${cs.colors.sourceColor}: ${rgbToHex(cluster.color)}`}
-                    aria-hidden="true"
-                    className="size-4 shrink-0 rounded-full ring-1 ring-black/10 ring-inset"
-                    style={{ backgroundColor: rgbToHex(cluster.color) }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="size-10 shrink-0 rounded-lg ring-1 ring-black/10 ring-inset"
-                    style={{ backgroundColor: yarn.hex }}
-                  />
-                  <div className="min-w-0 flex-1 text-sm leading-tight">
-                    <p className="truncate font-medium">{yarn.name}</p>
-                    <p className="text-muted text-xs">
+                  yarn={yarn}
+                  sourceColor={cluster.color}
+                  details={
+                    <>
                       {yarn.code} · {cs.colors.share(total ? (cluster.count / total) * 100 : 0)}
-                      {custom && <> · {cs.colors.custom}</>}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <button
-                      type="button"
-                      className={textButton}
-                      aria-label={cs.colors.changeLabel(i + 1, yarn.name)}
-                      onClick={() => setEditing(i)}
-                    >
-                      {cs.colors.change}
-                    </button>
-                    {custom && (
-                      <button
-                        type="button"
-                        className={`${textButton} text-xs`}
-                        onClick={() => onYarnChange(i, null)}
-                      >
-                        {cs.colors.restore}
-                      </button>
-                    )}
-                  </div>
-                </li>
+                    </>
+                  }
+                  changeLabel={cs.colors.changeLabel(i + 1, yarn.name)}
+                  custom={cluster.yarn !== cluster.autoYarn}
+                  onChange={() => setEditing(i)}
+                  onRestore={() => onYarnChange(i, null)}
+                />
               )
             })}
+            {fill && fillYarn && (
+              <YarnRow
+                yarn={fillYarn}
+                sourceColor={null}
+                details={
+                  <>
+                    {cs.colors.fill} · {fillYarn.code}
+                  </>
+                }
+                changeLabel={cs.colors.fillChangeLabel(fillYarn.name)}
+                custom={fill.yarn !== fill.autoYarn}
+                onChange={() => setEditing('fill')}
+                onRestore={() => onBackgroundYarnChange(null)}
+              />
+            )}
           </ul>
 
           <div className="text-muted mt-3 flex flex-col gap-1 text-sm">
@@ -117,20 +175,20 @@ export function ColorsPanel({
             {distinctYarns < clusters.length && <p>{cs.colors.merged}</p>}
             {dropped.length > 0 && <p>{cs.colors.dropped(dropped)}</p>}
             {result.smoothedPixels > 0 && (
-              <p>{cs.colors.smoothed(limitsConfig.minDetailMm, widthMm)}</p>
+              <p>{cs.colors.smoothed(limitsConfig.minDetailMm, result.layout.widthMm)}</p>
             )}
           </div>
         </div>
       )}
 
-      {editingCluster && editing !== null && (
+      {picker && (
         <YarnPicker
           yarns={yarns}
-          sourceColor={editingCluster.color}
-          currentCode={editingCluster.yarn}
-          recommendedCode={editingCluster.autoYarn}
+          sourceColor={picker.sourceColor}
+          currentCode={picker.current}
+          recommendedCode={picker.recommended}
           onSelect={(code) => {
-            onYarnChange(editing, code === editingCluster.autoYarn ? null : code)
+            picker.select(code)
             setEditing(null)
           }}
           onClose={() => setEditing(null)}

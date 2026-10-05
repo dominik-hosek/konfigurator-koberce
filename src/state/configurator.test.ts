@@ -66,4 +66,38 @@ describe('configuratorReducer', () => {
     const changed = reduce(initialState, { type: 'colorCountChanged', colorCount: 7 })
     expect(reduce(changed, { type: 'reset' })).toBe(initialState)
   })
+
+  it('clamps the width and margin to the configured limits', () => {
+    const { size, margin } = limitsConfig
+    expect(reduce(initialState, { type: 'widthChanged', widthMm: 1 }).widthMm).toBe(size.minWidthMm)
+    expect(reduce(initialState, { type: 'marginChanged', marginMm: 1e6 }).marginMm).toBe(
+      margin.maxMm,
+    )
+  })
+
+  it('unlocks and locks the aspect ratio', () => {
+    const unlocked = reduce(initialState, {
+      type: 'aspectLockChanged',
+      locked: false,
+      heightMm: 900,
+    })
+    expect(unlocked.heightMm).toBe(900)
+    expect(reduce(unlocked, { type: 'heightChanged', heightMm: 1000 }).heightMm).toBe(1000)
+    expect(
+      reduce(unlocked, { type: 'aspectLockChanged', locked: true, heightMm: 0 }).heightMm,
+    ).toBe(null)
+    // Height cannot be set while locked.
+    expect(reduce(initialState, { type: 'heightChanged', heightMm: 1000 })).toBe(initialState)
+  })
+
+  it('forces a locked aspect for circles and contours', () => {
+    const unlocked = reduce(initialState, {
+      type: 'aspectLockChanged',
+      locked: false,
+      heightMm: 900,
+    })
+    expect(reduce(unlocked, { type: 'shapeChanged', shape: 'oval' }).heightMm).toBe(900)
+    expect(reduce(unlocked, { type: 'shapeChanged', shape: 'circle' }).heightMm).toBeNull()
+    expect(reduce(unlocked, { type: 'shapeChanged', shape: 'contour' }).heightMm).toBeNull()
+  })
 })

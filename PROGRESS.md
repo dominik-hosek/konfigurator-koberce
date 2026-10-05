@@ -42,13 +42,30 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
     (https://dominik-hosek.github.io/konfigurator-koberce/).
   - 71 unit testů.
 
+- **Fáze 3 – tvary, rozměry, cena** (2026-10-05)
+  - Tvary: obdélník, kruh, ovál, podle motivu (obrys motivu rozšířený o okraj, díry
+    vyplněné). „Podle motivu“ je dostupné jen po odstranění pozadí.
+  - Dva režimy rozvržení: obrázek bez pozadí (fotka) se do tvaru **ořízne** (kruh = čtverec
+    ze středu); motiv s odstraněným pozadím tvar **obklopí** s nastavitelným okrajem
+    (0–20 cm) a pozadí uvnitř koberce se vyplní přízí (automaticky nejbližší k barvě
+    odstraněného pozadí, jde změnit v „Barvy a příze“).
+  - Rozměr: šířka v cm, výška dopočítaná z poměru stran; u obdélníku a oválu jde poměr
+    odemknout (motiv se vejde dovnitř bez deformace). Limity z `limits.json` hlídají obě
+    strany – při zamčeném poměru se šířka posune tak, aby i výška byla v rozsahu.
+  - Vyhlazení detailů teď běží na výsledném koberci se skutečným měřítkem (px/mm);
+    okraj tvaru se nevyhlazuje.
+  - Cena: plocha × cena/m² + příplatek za barvy nad počet v ceně + příplatek za tvar podle
+    motivu, minimální cena, zaokrouhlení nahoru (`roundTo`). Rozpis ceny v UI.
+    `areaBasis` v `pricing.json` určuje, zda se kruh/ovál/kontura počítá podle skutečné
+    plochy, nebo podle opsaného obdélníku.
+  - 103 unit testů.
+
 ## Rozpracováno
 
 - nic
 
 ## Další kroky
 
-- [ ] **Fáze 3** – tvary (obdélník, kruh, ovál, podle motivu), rozměry, kalkulace ceny.
 - [ ] **Fáze 4** – tuftovaný vzhled náhledu.
 - [ ] **Fáze 5** – poptávkový formulář, export PNG.
 - [ ] **Fáze 6** – responzivita, iframe embed s automatickou výškou, deploy na GitHub
@@ -59,10 +76,9 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
 - Vyhlazené hrany loga (anti-aliasing) si u k-means „zaberou“ jednu z barev (např. šedá
   0,5 %). Vyhlazení je pak z koberce odstraní, ale zákazník má o barvu méně, než nastavil.
   Možné zlepšení: ignorovat při shlukování pixely na hranách.
-- Šířka koberce pro vyhlazení je zatím výchozí (`defaultWidthMm`, 120 cm) a vztahuje se
-  k celé šířce obrázku. Ve Fázi 3 ji napojím na skutečný rozměr a tvar.
-- Pozadí zatím zůstává prázdné (šachovnice). Ve Fázi 3 ho u obdélníku/kruhu/oválu vyplní
-  zvolená příze, u tvaru „podle motivu“ se odřízne.
+- Ovál a kruh kolem motivu se počítají ze středu ohraničujícího obdélníku motivu – u
+  nesymetrických motivů nemusí být nejtěsnější možné.
+- Malý motiv na velkém koberci = málo pixelů na cm; náhled je pak hrubší (zdrojové rozlišení).
 - Ruční volby přízí se resetují při změně počtu barev nebo pozadí (barvy se přepočítají).
 - Na mobilu je náhled nahoře a ovládání pod ním – při úpravách je potřeba scrollovat.
   Řešit ve Fázi 6 (např. přilepený zmenšený náhled).
@@ -74,7 +90,9 @@ Zatím se jede se zástupnými hodnotami (`"_placeholder": true`):
 
 - [ ] Skutečná paleta přízí (názvy, kódy, HEX).
 - [ ] Ceník a příplatky (cena za m², příplatek za barvy, za tvar podle motivu, minimální cena).
-- [ ] Minimální vytuftovatelný detail v mm (zástupně 10 mm) a min./max. rozměry koberce.
+      Počítá se kruh/ovál/kontura podle skutečné plochy, nebo opsaného obdélníku?
+- [x] Minimální vytuftovatelný detail: 10 mm potvrzeno.
+- [ ] Min./max. rozměry koberce a maximální okraj kolem motivu.
 - [ ] Endpoint nebo e-mail pro poptávky (Formspree?).
 - [ ] Kam přesně se konfigurátor vloží na urug.cz (kvůli iframe a CSP/`frame-ancestors`).
 - [ ] GitHub Pages na bezplatném účtu vyžaduje **veřejný** repozitář – je to v pořádku?

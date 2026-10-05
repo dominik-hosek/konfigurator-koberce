@@ -1,6 +1,6 @@
 {
   "_placeholder": true,
-  "_comment": "Lengths in mm, file size in MB.",
+  "_comment": "Lengths in mm, file size in MB. margin = space around the motif when the background was removed.",
   "upload": {
     "maxFileSizeMb": 25,
     "acceptedTypes": ["image/jpeg", "image/png", "image/webp"],
@@ -18,5 +18,9 @@
     "maxHeightMm": 3000,
     "defaultWidthMm": 1200
   },
-  "minDetailMm": 10
+  "minDetailMm": 10,
+  "margin": {
+    "defaultMm": 50,
+    "maxMm": 200
+  }
 }

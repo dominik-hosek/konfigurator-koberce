@@ -5,7 +5,12 @@
 // covers the pixel. Everything else (thin lines, small islands, sharp spikes) is reassigned
 // to the label of the nearest surviving pixel. The image border does not erode regions, so
 // full-bleed designs keep their square corners.
-import { distanceTransform, NO_SITE_DISTANCE } from './edt'
+//
+// An optional `ignoreLabel` (pixels outside the rug) is left untouched: it is never opened,
+// never erodes neighbouring regions (like the image border) and never spreads into the rug.
+// Otherwise the thin slivers between a circle and its bounding box would be "smoothed away"
+// and flatten the outline.
+import { distanceTransform } from './edt'
 
 export interface SmoothingResult {
   labels: Uint8Array
@@ -20,10 +25,11 @@ interface Box {
   y1: number
 }
 
-function labelBoxes(labels: Uint8Array, width: number): Map<number, Box> {
+function labelBoxes(labels: Uint8Array, width: number, ignore: number): Map<number, Box> {
   const boxes = new Map<number, Box>()
   for (let p = 0; p < labels.length; p++) {
     const l = labels[p]!
+    if (l === ignore) continue
     const x = p % width
     const y = (p - x) / width
     const b = boxes.get(l)
@@ -47,13 +53,14 @@ export function* smoothDetailsSteps(
   width: number,
   height: number,
   radius: number,
+  ignoreLabel = -1,
 ): Generator<number, SmoothingResult> {
   if (radius < 0.5 || labels.length === 0) return { labels: labels.slice(), changed: 0 }
 
   const r2 = radius * radius
   const margin = Math.ceil(radius) + 1
   const kept = new Uint8Array(labels.length)
-  const boxes = labelBoxes(labels, width)
+  const boxes = labelBoxes(labels, width, ignoreLabel)
   let done = 0
   // Final nearest-label pass counts as one more step.
   const steps = boxes.size + 1
@@ -68,20 +75,25 @@ export function* smoothDetailsSteps(
 
     // Erosion: keep pixels further than r from any other label.
     const other = new Uint8Array(n)
+    const own = new Uint8Array(n)
     for (let y = 0, p = 0; y < bh; y++) {
       const row = (by0 + y) * width + bx0
-      for (let x = 0; x < bw; x++, p++) other[p] = labels[row + x] !== label ? 1 : 0
+      for (let x = 0; x < bw; x++, p++) {
+        const l = labels[row + x]
+        own[p] = l === label ? 1 : 0
+        other[p] = l !== label && l !== ignoreLabel ? 1 : 0
+      }
     }
     const outside = distanceTransform(bw, bh, other)
     const eroded = new Uint8Array(n)
-    for (let p = 0; p < n; p++) eroded[p] = outside.dist2[p]! > r2 ? 1 : 0
+    for (let p = 0; p < n; p++) eroded[p] = own[p] && outside.dist2[p]! > r2 ? 1 : 0
 
     // Dilation of the eroded set by r.
     const inside = distanceTransform(bw, bh, eroded)
     for (let y = 0, p = 0; y < bh; y++) {
       const row = (by0 + y) * width + bx0
       for (let x = 0; x < bw; x++, p++) {
-        if (!other[p] && inside.dist2[p]! <= r2) kept[row + x] = 1
+        if (own[p] && inside.dist2[p]! <= r2) kept[row + x] = 1
       }
     }
     yield ++done / steps
@@ -90,9 +102,9 @@ export function* smoothDetailsSteps(
   const nearest = distanceTransform(width, height, kept, true)
   const out = labels.slice()
   let changed = 0
-  if (nearest.dist2[0]! < NO_SITE_DISTANCE) {
+  if (boxes.size > 0 && kept.includes(1)) {
     for (let p = 0; p < out.length; p++) {
-      if (kept[p]) continue
+      if (kept[p] || labels[p] === ignoreLabel) continue
       const l = labels[nearest.nearest![p]!]!
       if (l !== out[p]) {
         out[p] = l
@@ -109,8 +121,9 @@ export function smoothDetails(
   width: number,
   height: number,
   radius: number,
+  ignoreLabel = -1,
 ): SmoothingResult {
-  const it = smoothDetailsSteps(labels, width, height, radius)
+  const it = smoothDetailsSteps(labels, width, height, radius, ignoreLabel)
   for (;;) {
     const step = it.next()
     if (step.done) return step.value

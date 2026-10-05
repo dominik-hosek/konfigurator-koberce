@@ -1,18 +1,24 @@
 // Processing worker: owns the working copy of the image and runs every per-pixel stage,
 // so the UI thread stays responsive. Intermediate results are cached, so changing a later
 // setting (yarn override, size) does not recompute earlier stages (background, clustering).
-import { yarnConfig } from '../config'
+import { limitsConfig, yarnConfig } from '../config'
 import {
   buildHistogram,
   indexPixels,
   quantizeHistogram,
+  TRANSPARENT_INDEX,
   type ColorHistogram,
   type Quantization,
 } from '../lib/color/quantize'
-import { assignYarns, prepareYarns } from '../lib/color/yarns'
+import type { Rgb } from '../lib/color/convert'
+import { assignYarns, nearestYarn, prepareYarns } from '../lib/color/yarns'
+import { detailRadiusPx } from '../lib/geometry/dimensions'
+import { computeLayout, rugAreaM2 } from '../lib/geometry/layout'
 import { computeBackgroundMask, type ResolvedBackgroundMode } from '../lib/image/background'
+import { composeRug, CUT } from '../lib/image/compose'
 import { buildYarnLayer, summarizeLabels } from '../lib/image/design'
 import { indexedToRgba } from '../lib/image/indexed'
+import { measureMotif } from '../lib/image/motif'
 import { smoothDetailsSteps } from '../lib/image/smoothing'
 import type { ProcessingStage, ProcessSettings, WorkerRequest, WorkerResponse } from './protocol'
 
@@ -112,10 +118,24 @@ async function run(req: ProcessRequest) {
   // 3. Yarn mapping.
   const assignment = assignYarns(q.palette, yarns, s.yarnOverrides)
   const layer = buildYarnLayer(img.clusterIndices.indices, assignment.final)
+  let backgroundCount = 0
+  for (const l of layer.labels) if (l === TRANSPARENT_INDEX) backgroundCount++
 
-  // 4. Detail smoothing, yielding between labels so newer requests can cancel it.
+  // 4. Layout and rug composition (background fill inside, cut outside the shape).
+  const motif = measureMotif(layer.labels, img.width, img.height)
+  const layout = computeLayout(motif, s.shape, limitsConfig.size)
+  const fillSource: Rgb = s.background.mode === 'color' ? s.background.colors[0]! : [255, 255, 255]
+  const autoFill = nearestYarn(fillSource, yarns).code
+  const fillYarn =
+    s.backgroundYarn && yarnByCode.has(s.backgroundYarn) ? s.backgroundYarn : autoFill
+  let fillLabel = layer.codes.indexOf(fillYarn)
+  if (fillLabel === -1) fillLabel = layer.codes.push(fillYarn) - 1
+  const rug = composeRug(layer.labels, img.width, img.height, layout, fillLabel)
+
+  // 5. Detail smoothing on the final grid, yielding so newer requests can cancel it.
   const smoothingProgress = report('smoothing')
-  const steps = smoothDetailsSteps(layer.labels, img.width, img.height, s.detailRadiusPx)
+  const radius = detailRadiusPx(limitsConfig.minDetailMm, layout.pxPerMm)
+  const steps = smoothDetailsSteps(rug.labels, rug.width, rug.height, radius, CUT)
   let step = steps.next()
   while (!step.done) {
     smoothingProgress(step.value)
@@ -124,7 +144,7 @@ async function run(req: ProcessRequest) {
   }
   const smoothed = step.value
 
-  // 5. Final design + flat preview.
+  // 6. Final design + flat preview.
   report('rendering')(0)
   const summary = summarizeLabels(smoothed.labels, layer.codes)
   const preview = indexedToRgba(
@@ -139,8 +159,18 @@ async function run(req: ProcessRequest) {
       result: {
         imageId: img.id,
         settings: s,
-        width: img.width,
-        height: img.height,
+        width: rug.width,
+        height: rug.height,
+        layout,
+        motif,
+        areaM2: rugAreaM2(layout, rug.rugPixels),
+        boundingAreaM2: (layout.widthMm * layout.heightMm) / 1_000_000,
+        fill: {
+          autoYarn: autoFill,
+          yarn: fillYarn,
+          sourceColor: fillSource,
+          used: rug.fillPixels > 0,
+        },
         backgroundMode: img.backgroundMode ?? 'none',
         clusters: q.palette.map((color, i) => ({
           color,
@@ -149,7 +179,7 @@ async function run(req: ProcessRequest) {
           yarn: assignment.final[i]!,
         })),
         yarns: summary.yarns,
-        backgroundCount: summary.backgroundCount,
+        backgroundCount,
         indices: summary.indices,
         preview,
         smoothedPixels: smoothed.changed,

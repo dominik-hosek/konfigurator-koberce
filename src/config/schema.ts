@@ -21,6 +21,8 @@ export interface PricingConfig {
   pricePerExtraColor: number
   contourShapeSurcharge: number
   minimumPrice: number
+  areaBasis: 'shape' | 'boundingBox'
+  roundTo: number
 }
 
 export interface LimitsConfig {
@@ -41,6 +43,10 @@ export interface LimitsConfig {
     minHeightMm: number
     maxHeightMm: number
     defaultWidthMm: number
+  }
+  margin: {
+    defaultMm: number
+    maxMm: number
   }
   minDetailMm: number
 }
@@ -119,7 +125,17 @@ export function parsePricingConfig(raw: unknown): PricingConfig {
     pricePerExtraColor: num(file, o, 'pricePerExtraColor'),
     contourShapeSurcharge: num(file, o, 'contourShapeSurcharge'),
     minimumPrice: num(file, o, 'minimumPrice'),
+    areaBasis: areaBasis(file, o),
+    roundTo: num(file, o, 'roundTo', 'roundTo', 1),
   }
+}
+
+function areaBasis(file: string, o: Json): PricingConfig['areaBasis'] {
+  const v = o.areaBasis
+  if (v !== 'shape' && v !== 'boundingBox') {
+    throw new ConfigError(file, 'areaBasis must be "shape" or "boundingBox"')
+  }
+  return v
 }
 
 export function parseLimitsConfig(raw: unknown): LimitsConfig {
@@ -128,6 +144,7 @@ export function parseLimitsConfig(raw: unknown): LimitsConfig {
   const upload = obj(file, o.upload, 'upload')
   const colors = obj(file, o.colors, 'colors')
   const size = obj(file, o.size, 'size')
+  const margin = obj(file, o.margin, 'margin')
 
   if (
     !Array.isArray(upload.acceptedTypes) ||
@@ -156,6 +173,10 @@ export function parseLimitsConfig(raw: unknown): LimitsConfig {
       maxHeightMm: num(file, size, 'maxHeightMm', 'size.maxHeightMm', 1),
       defaultWidthMm: num(file, size, 'defaultWidthMm', 'size.defaultWidthMm', 1),
     },
+    margin: {
+      defaultMm: num(file, margin, 'defaultMm', 'margin.defaultMm', 0),
+      maxMm: num(file, margin, 'maxMm', 'margin.maxMm', 0),
+    },
     minDetailMm: num(file, o, 'minDetailMm', 'minDetailMm', 0),
   }
 
@@ -169,6 +190,9 @@ export function parseLimitsConfig(raw: unknown): LimitsConfig {
   }
   if (s.defaultWidthMm < s.minWidthMm || s.defaultWidthMm > s.maxWidthMm) {
     throw new ConfigError(file, 'size.defaultWidthMm must lie within min/max width')
+  }
+  if (result.margin.defaultMm > result.margin.maxMm) {
+    throw new ConfigError(file, 'margin.defaultMm must not exceed margin.maxMm')
   }
   return result
 }

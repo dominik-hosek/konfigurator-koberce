@@ -10,6 +10,6 @@ export function pxPerMm(widthPx: number, widthMm: number): number {
  * Radius in pixels of the smallest feature that can be tufted. A detail narrower than
  * `minDetailMm` is removed, so the morphological disk has half that diameter.
  */
-export function detailRadiusPx(minDetailMm: number, widthPx: number, widthMm: number): number {
-  return (minDetailMm / 2) * pxPerMm(widthPx, widthMm)
+export function detailRadiusPx(minDetailMm: number, pixelsPerMm: number): number {
+  return (minDetailMm / 2) * pixelsPerMm
 }

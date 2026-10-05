@@ -29,14 +29,20 @@ export function PreviewPanel({
   const { result, status, stage, progress } = processor
   // Only show results that belong to the current image.
   const current = result?.imageId === image.id ? result : null
-  const { width, height } = image.imageData
+  const showDesign = view === 'design' && current !== null
+  // Canvas size and its offset in source-image pixels (the rug frame may extend beyond it).
+  const { width, height } = showDesign ? current : image.imageData
+  const offset = showDesign ? current.layout.frame : { x: 0, y: 0 }
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    if (view === 'original') drawRgba(canvas, image.imageData.data, width, height)
-    else if (current) drawRgba(canvas, current.preview, current.width, current.height)
-  }, [view, image, current, width, height])
+    if (view === 'original') {
+      drawRgba(canvas, image.imageData.data, image.imageData.width, image.imageData.height)
+    } else if (current) {
+      drawRgba(canvas, current.preview, current.width, current.height)
+    }
+  }, [view, image, current])
 
   useEffect(() => {
     if (!picking) return
@@ -47,9 +53,10 @@ export function PreviewPanel({
 
   function handlePick(e: MouseEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * width
-    const y = ((e.clientY - rect.top) / rect.height) * height
-    onPick(Math.min(width - 1, Math.max(0, x)), Math.min(height - 1, Math.max(0, y)))
+    const x = ((e.clientX - rect.left) / rect.width) * width + offset.x
+    const y = ((e.clientY - rect.top) / rect.height) * height + offset.y
+    const { width: iw, height: ih } = image.imageData
+    onPick(Math.min(iw - 1, Math.max(0, x)), Math.min(ih - 1, Math.max(0, y)))
   }
 
   const working = status === 'working'
@@ -89,9 +96,9 @@ export function PreviewPanel({
                 : cs.preview.canvasLabel
           }
           onClick={picking ? handlePick : undefined}
-          className={`checker h-auto max-h-[70dvh] w-auto max-w-full shadow-sm ${
-            picking ? 'cursor-crosshair' : ''
-          } ${showCanvas ? '' : 'hidden'}`}
+          className={`h-auto max-h-[70dvh] w-auto max-w-full ${
+            showDesign ? 'drop-shadow-md' : 'checker shadow-sm'
+          } ${picking ? 'cursor-crosshair' : ''} ${showCanvas ? '' : 'hidden'}`}
           style={{ aspectRatio: `${width} / ${height}` }}
         />
         {!showCanvas && <p className="text-muted text-sm">{cs.preview.working}</p>}

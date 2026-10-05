@@ -1,10 +1,12 @@
 {
   "_placeholder": true,
-  "_comment": "All amounts in CZK incl. VAT, whole crowns. Indicative 'price from'.",
+  "_comment": "All amounts in CZK incl. VAT, whole crowns. Shown as an indicative 'price from'. areaBasis: 'shape' = real area of circles/ovals/contours, 'boundingBox' = width × height for every shape. roundTo: final price is rounded up to this step.",
   "currency": "CZK",
   "pricePerM2": 8900,
   "includedColors": 3,
   "pricePerExtraColor": 400,
   "contourShapeSurcharge": 1500,
-  "minimumPrice": 3900
+  "minimumPrice": 3900,
+  "areaBasis": "shape",
+  "roundTo": 100
 }
