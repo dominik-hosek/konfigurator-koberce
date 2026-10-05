@@ -23,14 +23,31 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
   - UI: přepínač Návrh / Původní, posuvník počtu barev, seznam barev s podílem plochy.
   - 29 unit testů (převod barev, k-means, kvantizace, validace uploadu, konfigurace, reducer).
 
+- **Fáze 2 – příze, pozadí, vyhlazení detailů** (2026-10-05)
+  - Mapování barev na nejbližší přízi z palety (CIEDE2000, ověřeno na referenčních datech).
+    Barvy, které připadnou na stejnou přízi, se sloučí.
+  - Ruční přepnutí příze: dialog se všemi přízemi seřazenými podle podobnosti, označená
+    doporučená, „Vrátit doporučenou“. Ovladatelné klávesnicí (Esc zavře).
+  - Pozadí: průhledné PNG automaticky; „Najít pozadí automaticky“ (dominantní barva okraje
+    obrázku, plní se od okrajů); „Vybrat pozadí v náhledu“ kliknutím (lze přidat více míst);
+    posuvník citlivosti; volba „Odstranit tuto barvu i uvnitř motivu“; zrušení. Odstraněné
+    pozadí se v náhledu ukazuje šachovnicí.
+  - Vyhlazení detailů: morfologické otevření kruhem o průměru minimálního detailu
+    (`limits.json` → `minDetailMm`) přepočteného na pixely podle šířky koberce. Odstraní
+    tenké linky, ostrůvky, úzké mezery i ostré špičky; okraj obrázku neerodují.
+    Příze, které úplně zmizí, se vypíšou jako „příliš drobné“.
+  - Worker: pipeline s cache po stupních; rozpracovaný výpočet se zahodí, když přijde novější
+    požadavek (např. tažení posuvníkem).
+  - GitHub Pages: automatický build + lint + testy + nasazení při každém pushi
+    (https://dominik-hosek.github.io/konfigurator-koberce/).
+  - 71 unit testů.
+
 ## Rozpracováno
 
 - nic
 
 ## Další kroky
 
-- [ ] **Fáze 2** – mapování na paletu přízí (Lab, CIEDE2000), ruční přepínání přízí,
-      odstranění pozadí (alfa / klik + tolerance), vyhlazení detailů.
 - [ ] **Fáze 3** – tvary (obdélník, kruh, ovál, podle motivu), rozměry, kalkulace ceny.
 - [ ] **Fáze 4** – tuftovaný vzhled náhledu.
 - [ ] **Fáze 5** – poptávkový formulář, export PNG.
@@ -39,8 +56,16 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
 
 ## Poznámky pro další fáze
 
-- Vyhlazené hrany loga (anti-aliasing) vytvářejí drobné přechodové barvy (~0,5 % plochy).
-  Řeší je Fáze 2 (vyhlazení detailů) – případně je při mapování na přízi sloučíme.
+- Vyhlazené hrany loga (anti-aliasing) si u k-means „zaberou“ jednu z barev (např. šedá
+  0,5 %). Vyhlazení je pak z koberce odstraní, ale zákazník má o barvu méně, než nastavil.
+  Možné zlepšení: ignorovat při shlukování pixely na hranách.
+- Šířka koberce pro vyhlazení je zatím výchozí (`defaultWidthMm`, 120 cm) a vztahuje se
+  k celé šířce obrázku. Ve Fázi 3 ji napojím na skutečný rozměr a tvar.
+- Pozadí zatím zůstává prázdné (šachovnice). Ve Fázi 3 ho u obdélníku/kruhu/oválu vyplní
+  zvolená příze, u tvaru „podle motivu“ se odřízne.
+- Ruční volby přízí se resetují při změně počtu barev nebo pozadí (barvy se přepočítají).
+- Na mobilu je náhled nahoře a ovládání pod ním – při úpravách je potřeba scrollovat.
+  Řešit ve Fázi 6 (např. přilepený zmenšený náhled).
 - Formát HEIC (iPhone) prohlížeče neumí dekódovat; při focení přes „Vyfotit“ iOS posílá JPEG.
 
 ## Otevřené otázky

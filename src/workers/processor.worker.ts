@@ -1,5 +1,7 @@
 // Processing worker: owns the working copy of the image and runs every per-pixel stage,
-// so the UI thread stays responsive. Results of earlier stages are cached per image.
+// so the UI thread stays responsive. Intermediate results are cached, so changing a later
+// setting (yarn override, size) does not recompute earlier stages (background, clustering).
+import { yarnConfig } from '../config'
 import {
   buildHistogram,
   indexPixels,
@@ -7,8 +9,12 @@ import {
   type ColorHistogram,
   type Quantization,
 } from '../lib/color/quantize'
+import { assignYarns, prepareYarns } from '../lib/color/yarns'
+import { computeBackgroundMask, type ResolvedBackgroundMode } from '../lib/image/background'
+import { buildYarnLayer, summarizeLabels } from '../lib/image/design'
 import { indexedToRgba } from '../lib/image/indexed'
-import type { ProcessingStage, WorkerRequest, WorkerResponse } from './protocol'
+import { smoothDetailsSteps } from '../lib/image/smoothing'
+import type { ProcessingStage, ProcessSettings, WorkerRequest, WorkerResponse } from './protocol'
 
 // The app tsconfig uses DOM typings; describe the bits of the worker scope we use.
 interface WorkerScope {
@@ -17,18 +23,30 @@ interface WorkerScope {
 }
 const scope = self as unknown as WorkerScope
 
+const yarns = prepareYarns(yarnConfig.yarns)
+const yarnByCode = new Map(yarns.map((y) => [y.code, y]))
+
+type ProcessRequest = Extract<WorkerRequest, { type: 'process' }>
+
 interface ImageState {
   id: number
   width: number
   height: number
   pixels: Uint8ClampedArray
+  // Cache, invalidated from the top down.
+  backgroundKey?: string
+  mask?: Uint8Array
+  backgroundMode?: ResolvedBackgroundMode
   histogram?: ColorHistogram
   quantizations: Map<number, Quantization>
+  clusterIndices?: { colorCount: number; indices: Uint8Array }
 }
 
 let image: ImageState | null = null
-let pendingQuantize: Extract<WorkerRequest, { type: 'quantize' }> | null = null
-let scheduled = false
+let pending: ProcessRequest | null = null
+let running = false
+
+class Superseded extends Error {}
 
 function post(message: WorkerResponse, transfer?: Transferable[]) {
   scope.postMessage(message, transfer)
@@ -45,58 +63,122 @@ function progress(requestId: number, stage: ProcessingStage) {
   }
 }
 
-function runQuantize(req: Extract<WorkerRequest, { type: 'quantize' }>) {
+/** Lets queued messages arrive; aborts if a newer request is waiting. */
+async function checkpoint() {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  if (pending) throw new Superseded()
+}
+
+async function run(req: ProcessRequest) {
   if (!image || image.id !== req.imageId) {
     post({ type: 'error', requestId: req.requestId, message: 'image-not-loaded' })
     return
   }
   const img = image
-  img.histogram ??= buildHistogram(img.pixels, undefined, progress(req.requestId, 'histogram'))
+  const s: ProcessSettings = req.settings
+  const report = (stage: ProcessingStage) => progress(req.requestId, stage)
 
-  let q = img.quantizations.get(req.colorCount)
-  if (!q) {
-    q = quantizeHistogram(img.histogram, req.colorCount, progress(req.requestId, 'clustering'))
-    img.quantizations.set(req.colorCount, q)
+  // 1. Background mask.
+  const backgroundKey = JSON.stringify(s.background)
+  if (img.backgroundKey !== backgroundKey) {
+    report('background')(0)
+    const { mask, mode } = computeBackgroundMask(img.pixels, img.width, img.height, s.background)
+    Object.assign(img, {
+      backgroundKey,
+      mask,
+      backgroundMode: mode,
+      histogram: undefined,
+      clusterIndices: undefined,
+    })
+    img.quantizations.clear()
+    await checkpoint()
   }
 
-  post({ type: 'progress', requestId: req.requestId, stage: 'rendering', fraction: 0 })
-  const indices = indexPixels(img.pixels, img.histogram, q)
-  const preview = indexedToRgba(indices, q.palette)
+  // 2. Colour clustering.
+  img.histogram ??= buildHistogram(img.pixels, img.mask, report('histogram'))
+  let q = img.quantizations.get(s.colorCount)
+  if (!q) {
+    q = quantizeHistogram(img.histogram, s.colorCount, report('clustering'))
+    img.quantizations.set(s.colorCount, q)
+    await checkpoint()
+  }
+  if (img.clusterIndices?.colorCount !== s.colorCount) {
+    img.clusterIndices = {
+      colorCount: s.colorCount,
+      indices: indexPixels(img.pixels, img.histogram, q, img.mask),
+    }
+  }
+
+  // 3. Yarn mapping.
+  const assignment = assignYarns(q.palette, yarns, s.yarnOverrides)
+  const layer = buildYarnLayer(img.clusterIndices.indices, assignment.final)
+
+  // 4. Detail smoothing, yielding between labels so newer requests can cancel it.
+  const smoothingProgress = report('smoothing')
+  const steps = smoothDetailsSteps(layer.labels, img.width, img.height, s.detailRadiusPx)
+  let step = steps.next()
+  while (!step.done) {
+    smoothingProgress(step.value)
+    await checkpoint()
+    step = steps.next()
+  }
+  const smoothed = step.value
+
+  // 5. Final design + flat preview.
+  report('rendering')(0)
+  const summary = summarizeLabels(smoothed.labels, layer.codes)
+  const preview = indexedToRgba(
+    summary.indices,
+    summary.yarns.map((y) => yarnByCode.get(y.code)!.rgb),
+  )
 
   post(
     {
-      type: 'quantized',
+      type: 'processed',
       requestId: req.requestId,
       result: {
         imageId: img.id,
-        colorCount: req.colorCount,
+        settings: s,
         width: img.width,
         height: img.height,
-        palette: q.palette,
-        counts: q.counts,
-        indices,
+        backgroundMode: img.backgroundMode ?? 'none',
+        clusters: q.palette.map((color, i) => ({
+          color,
+          count: q.counts[i]!,
+          autoYarn: assignment.auto[i]!,
+          yarn: assignment.final[i]!,
+        })),
+        yarns: summary.yarns,
+        backgroundCount: summary.backgroundCount,
+        indices: summary.indices,
         preview,
+        smoothedPixels: smoothed.changed,
       },
     },
-    [indices.buffer, preview.buffer],
+    [summary.indices.buffer, preview.buffer],
   )
 }
 
-// Quantize requests are coalesced: while the user drags a slider only the latest one runs.
-function flush() {
-  scheduled = false
-  const req = pendingQuantize
-  pendingQuantize = null
-  if (!req) return
-  try {
-    runQuantize(req)
-  } catch (err) {
-    post({
-      type: 'error',
-      requestId: req.requestId,
-      message: err instanceof Error ? err.message : String(err),
-    })
+// Requests are coalesced: while the user drags a slider only the latest one runs, and a
+// running one is abandoned at the next checkpoint when a newer one arrives.
+async function drain() {
+  if (running) return
+  running = true
+  while (pending) {
+    const req = pending
+    pending = null
+    try {
+      await run(req)
+    } catch (err) {
+      if (err instanceof Superseded) continue
+      post({
+        type: 'error',
+        requestId: req.requestId,
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
+  running = false
 }
 
 scope.onmessage = (event) => {
@@ -110,14 +192,10 @@ scope.onmessage = (event) => {
         pixels: msg.pixels,
         quantizations: new Map(),
       }
-      pendingQuantize = null
       break
-    case 'quantize':
-      pendingQuantize = msg
-      if (!scheduled) {
-        scheduled = true
-        setTimeout(flush, 0)
-      }
+    case 'process':
+      pending = msg
+      void drain()
       break
   }
 }

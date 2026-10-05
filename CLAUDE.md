@@ -52,7 +52,11 @@ every session and update it at the end of every phase.
 - Quantization: 5-bit-per-channel histogram (bins keep their mean colour), then weighted
   k-means++ in Lab with a fixed seed. Histogram and per-colour-count results are cached
   in the worker.
-- Worker messages are typed discriminated unions in `src/workers/protocol.ts`.
+- Worker messages are typed discriminated unions in `src/workers/protocol.ts`. The UI sends
+  the full `ProcessSettings` on every change; the worker caches stages (mask → histogram →
+  clusters) and abandons a running request at `checkpoint()` when a newer one arrives.
+- Detail smoothing = per-label morphological opening (disk radius = minDetailMm / 2 in px)
+  via exact distance transforms (`lib/image/edt.ts`); the image border never erodes.
 - React state: a single reducer for the configuration (`src/state`), derived values
   (price, spec) computed with selectors, not stored.
 - Styling: Tailwind utilities, neutral palette, generous whitespace; the customer's rug is
