@@ -12,11 +12,12 @@ import {
 } from '../lib/color/quantize'
 import type { Rgb } from '../lib/color/convert'
 import { assignYarns, nearestYarn, prepareYarns } from '../lib/color/yarns'
-import { detailRadiusPx } from '../lib/geometry/dimensions'
+import { lineRadiusPx, minIslandAreaPx } from '../lib/geometry/dimensions'
 import { computeLayout, rugAreaM2 } from '../lib/geometry/layout'
 import { computeBackgroundMask, type ResolvedBackgroundMode } from '../lib/image/background'
 import { composeRug, CUT } from '../lib/image/compose'
 import { buildYarnLayer, summarizeLabels } from '../lib/image/design'
+import { detailImportance } from '../lib/image/importance'
 import { indexedToRgba } from '../lib/image/indexed'
 import { measureMotif } from '../lib/image/motif'
 import { smoothDetailsSteps } from '../lib/image/smoothing'
@@ -30,6 +31,8 @@ interface WorkerScope {
 const scope = self as unknown as WorkerScope
 
 const yarns = prepareYarns(yarnConfig.yarns)
+/** Extra clustering weight for skin tones, so faces get enough shades (tuned on portraits). */
+const SKIN_BOOST = 2
 const yarnByCode = new Map(yarns.map((y) => [y.code, y]))
 
 type ProcessRequest = Extract<WorkerRequest, { type: 'process' }>
@@ -101,7 +104,13 @@ async function run(req: ProcessRequest) {
   }
 
   // 2. Colour clustering.
-  img.histogram ??= buildHistogram(img.pixels, img.mask, report('histogram'))
+  // Weight detailed areas (faces, text) above flat ones so they get their own shades.
+  img.histogram ??= buildHistogram(
+    img.pixels,
+    img.mask,
+    report('histogram'),
+    detailImportance(img.pixels, img.width, img.height, img.mask, { skinBoost: SKIN_BOOST }),
+  )
   let q = img.quantizations.get(s.colorCount)
   if (!q) {
     q = quantizeHistogram(img.histogram, s.colorCount, report('clustering'))
@@ -134,8 +143,11 @@ async function run(req: ProcessRequest) {
 
   // 5. Detail smoothing on the final grid, yielding so newer requests can cancel it.
   const smoothingProgress = report('smoothing')
-  const radius = detailRadiusPx(limitsConfig.minDetailMm, layout.pxPerMm)
-  const steps = smoothDetailsSteps(rug.labels, rug.width, rug.height, radius, CUT)
+  const steps = smoothDetailsSteps(rug.labels, rug.width, rug.height, {
+    lineRadius: lineRadiusPx(limitsConfig.minLineWidthMm, layout.pxPerMm),
+    minIslandArea: minIslandAreaPx(limitsConfig.minDetailMm, layout.pxPerMm),
+    ignoreLabel: CUT,
+  })
   let step = steps.next()
   while (!step.done) {
     smoothingProgress(step.value)

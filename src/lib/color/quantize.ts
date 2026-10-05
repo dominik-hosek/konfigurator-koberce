@@ -25,7 +25,9 @@ export interface ColorHistogram {
   /** Lab colour per occupied bin, flat [L, a, b, ...]. */
   points: Float32Array
   /** Pixel count per occupied bin. */
-  weights: Uint32Array
+  counts: Uint32Array
+  /** Clustering weight per occupied bin (pixel count, or summed per-pixel importance). */
+  weights: Float64Array
   /** Bin id -> point index, or -1 for empty bins. */
   binToPoint: Int32Array
   /** Number of opaque (foreground) pixels. */
@@ -35,14 +37,18 @@ export interface ColorHistogram {
 /**
  * Builds a colour histogram of the opaque pixels. `mask`, if given, marks pixels that
  * should be ignored (non-zero = background) in addition to transparent ones.
+ * `importance`, if given, weights each pixel for clustering (see lib/image/importance.ts),
+ * so small but detailed areas such as faces get their own colours.
  */
 export function buildHistogram(
   pixels: Uint8ClampedArray,
   mask?: Uint8Array,
   onProgress?: (fraction: number) => void,
+  importance?: Float32Array,
 ): ColorHistogram {
   const pixelCount = pixels.length / 4
   const counts = new Uint32Array(BIN_COUNT)
+  const binWeights = new Float64Array(BIN_COUNT)
   const sums = new Float64Array(BIN_COUNT * 3)
   let opaquePixels = 0
   const progressStep = Math.max(1, Math.floor(pixelCount / 10))
@@ -55,6 +61,7 @@ export function buildHistogram(
     const b = pixels[i + 2]!
     const bin = binOf(r, g, b)
     counts[bin] = counts[bin]! + 1
+    binWeights[bin] = binWeights[bin]! + (importance ? importance[p]! : 1)
     sums[bin * 3] = sums[bin * 3]! + r
     sums[bin * 3 + 1] = sums[bin * 3 + 1]! + g
     sums[bin * 3 + 2] = sums[bin * 3 + 2]! + b
@@ -66,7 +73,8 @@ export function buildHistogram(
   for (let bin = 0; bin < BIN_COUNT; bin++) if (counts[bin]) occupied++
 
   const points = new Float32Array(occupied * 3)
-  const weights = new Uint32Array(occupied)
+  const pointCounts = new Uint32Array(occupied)
+  const weights = new Float64Array(occupied)
   const binToPoint = new Int32Array(BIN_COUNT).fill(-1)
   let n = 0
   for (let bin = 0; bin < BIN_COUNT; bin++) {
@@ -79,13 +87,14 @@ export function buildHistogram(
       points,
       n * 3,
     )
-    weights[n] = c
+    pointCounts[n] = c
+    weights[n] = binWeights[bin]!
     binToPoint[bin] = n
     n++
   }
 
   onProgress?.(1)
-  return { points, weights, binToPoint, opaquePixels }
+  return { points, counts: pointCounts, weights, binToPoint, opaquePixels }
 }
 
 export interface Quantization {
@@ -114,9 +123,13 @@ export function quantizeHistogram(
   })
 
   const k = result.centroids.length / 3
-  const order = Array.from({ length: k }, (_, c) => c).sort(
-    (a, b) => result.clusterWeights[b]! - result.clusterWeights[a]!,
-  )
+  // Real pixel coverage per cluster (clustering weights may be importance-scaled).
+  const coverage = new Float64Array(k)
+  for (let i = 0; i < result.assignments.length; i++) {
+    const c = result.assignments[i]!
+    coverage[c] = coverage[c]! + histogram.counts[i]!
+  }
+  const order = Array.from({ length: k }, (_, c) => c).sort((a, b) => coverage[b]! - coverage[a]!)
   const rank = new Uint8Array(k)
   order.forEach((cluster, i) => (rank[cluster] = i))
 
@@ -127,7 +140,7 @@ export function quantizeHistogram(
       result.centroids[c * 3 + 2]!,
     ]),
   )
-  const counts = order.map((c) => result.clusterWeights[c]!)
+  const counts = order.map((c) => coverage[c]!)
   const pointToPalette = new Uint8Array(result.assignments.length)
   for (let i = 0; i < result.assignments.length; i++) {
     pointToPalette[i] = rank[result.assignments[i]!]!

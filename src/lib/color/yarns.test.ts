@@ -49,4 +49,33 @@ describe('assignYarns', () => {
     expect(res.auto).toEqual(['W', 'R'])
     expect(res.final).toEqual(['W', 'B'])
   })
+
+  it('gives similar clusters their own yarns when a close alternative exists', () => {
+    const palette = prepareYarns([
+      { code: 'L', name: 'light skin', hex: '#F1D3BC' },
+      { code: 'M', name: 'mid skin', hex: '#E0B08E' },
+      { code: 'K', name: 'black', hex: '#151515' },
+    ])
+    // Both skin-ish clusters are nearest to L, but M is close enough for the second one.
+    const res = assignYarns(
+      [
+        [240, 210, 188],
+        [232, 196, 170],
+      ],
+      palette,
+    )
+    expect(new Set(res.auto).size).toBe(2)
+    expect(res.auto[0]).toBe('L')
+  })
+
+  it('still shares a yarn when the only free alternative is far off', () => {
+    const res = assignYarns(
+      [
+        [250, 250, 250],
+        [245, 245, 245],
+      ],
+      yarns,
+    )
+    expect(res.auto).toEqual(['W', 'W'])
+  })
 })

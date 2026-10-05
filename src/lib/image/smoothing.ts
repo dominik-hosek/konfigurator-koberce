@@ -1,10 +1,15 @@
-// Detail smoothing: removes islands and lines that are too small to be tufted.
+// Detail smoothing: removes what is too small to be tufted, in two passes.
 //
-// Each label (yarn or background) is morphologically opened with a disk of the given radius:
-// a pixel keeps its label only if a disk of that radius fits inside the label's region and
-// covers the pixel. Everything else (thin lines, small islands, sharp spikes) is reassigned
-// to the label of the nearest surviving pixel. The image border does not erode regions, so
-// full-bleed designs keep their square corners.
+// 1. Thin lines: each label (yarn or background) is morphologically opened with a disk of
+//    `lineRadius`: a pixel keeps its label only if a disk of that radius fits inside the
+//    label's region and covers the pixel. Thinner lines and spikes are reassigned to the
+//    label of the nearest surviving pixel. The image border does not erode regions, so
+//    full-bleed designs keep their square corners.
+// 2. Small islands: connected areas smaller than `minIslandArea` pixels are absorbed by the
+//    label they share the longest border with.
+//
+// Keeping the two limits separate matters for portraits: an eyebrow or a mouth line is
+// narrow but long, and can be tufted even if a dot of the same width could not.
 //
 // An optional `ignoreLabel` (pixels outside the rug) is left untouched: it is never opened,
 // never erodes neighbouring regions (like the image border) and never spreads into the rug.
@@ -44,26 +49,134 @@ function labelBoxes(labels: Uint8Array, width: number, ignore: number): Map<numb
   return boxes
 }
 
+export interface SmoothingOptions {
+  /** Half the minimum line width, in pixels. Below 0.5 the line pass is skipped. */
+  lineRadius: number
+  /** Minimum area of a connected region, in pixels. Below 2 the island pass is skipped. */
+  minIslandArea: number
+  /** Label that is never changed and never spreads (pixels outside the rug). */
+  ignoreLabel?: number
+}
+
+/**
+ * Absorbs connected regions (8-connected) smaller than `minArea` into the neighbouring label
+ * with the longest shared border. Smallest regions go first. Mutates `labels`.
+ */
+export function removeSmallIslands(
+  labels: Uint8Array,
+  width: number,
+  height: number,
+  minArea: number,
+  ignoreLabel = -1,
+): number {
+  const n = labels.length
+  const comp = new Int32Array(n).fill(-1)
+  const order = new Int32Array(n) // pixels grouped by component
+  const starts: number[] = []
+  const areas: number[] = []
+  let tail = 0
+
+  for (let seed = 0; seed < n; seed++) {
+    if (comp[seed] !== -1 || labels[seed] === ignoreLabel) continue
+    const id = starts.length
+    const label = labels[seed]
+    starts.push(tail)
+    comp[seed] = id
+    order[tail++] = seed
+    for (let head = starts[id]!; head < tail; head++) {
+      const p = order[head]!
+      const x = p % width
+      const y = (p - x) / width
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy
+        if (yy < 0 || yy >= height) continue
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx
+          if (xx < 0 || xx >= width) continue
+          const q = yy * width + xx
+          if (comp[q] === -1 && labels[q] === label) {
+            comp[q] = id
+            order[tail++] = q
+          }
+        }
+      }
+    }
+    areas.push(tail - starts[id]!)
+  }
+
+  const small = areas
+    .map((area, id) => ({ area, id }))
+    .filter((c) => c.area < minArea)
+    .sort((a, b) => a.area - b.area)
+
+  let changed = 0
+  const votes = new Map<number, number>()
+  for (const { area, id } of small) {
+    votes.clear()
+    const start = starts[id]!
+    const own = labels[order[start]!]!
+    for (let i = start; i < start + area; i++) {
+      const p = order[i]!
+      const x = p % width
+      const neighbours = [
+        x > 0 ? p - 1 : -1,
+        x < width - 1 ? p + 1 : -1,
+        p >= width ? p - width : -1,
+        p < n - width ? p + width : -1,
+      ]
+      for (const q of neighbours) {
+        if (q < 0) continue
+        const l = labels[q]!
+        if (l === own || l === ignoreLabel) continue
+        votes.set(l, (votes.get(l) ?? 0) + 1)
+      }
+    }
+    let best = -1
+    let bestVotes = 0
+    for (const [l, v] of votes) {
+      if (v > bestVotes) {
+        best = l
+        bestVotes = v
+      }
+    }
+    if (best === -1) continue // only touches the outside: nothing to merge into
+    for (let i = start; i < start + area; i++) labels[order[i]!] = best
+    changed += area
+  }
+  return changed
+}
+
 /**
  * Generator form so the worker can yield between labels (to stay cancellable).
  * Yields progress 0..1 and returns the result.
  */
 export function* smoothDetailsSteps(
-  labels: Uint8Array,
+  input: Uint8Array,
   width: number,
   height: number,
-  radius: number,
-  ignoreLabel = -1,
+  options: SmoothingOptions,
 ): Generator<number, SmoothingResult> {
-  if (radius < 0.5 || labels.length === 0) return { labels: labels.slice(), changed: 0 }
+  const { lineRadius: radius, minIslandArea, ignoreLabel = -1 } = options
+  const labels = input
+  const countChanges = (out: Uint8Array) => {
+    let changed = 0
+    for (let p = 0; p < out.length; p++) if (out[p] !== input[p]) changed++
+    return { labels: out, changed }
+  }
+  if (radius < 0.5) {
+    const out = labels.slice()
+    if (minIslandArea >= 2) removeSmallIslands(out, width, height, minIslandArea, ignoreLabel)
+    yield 1
+    return countChanges(out)
+  }
 
   const r2 = radius * radius
   const margin = Math.ceil(radius) + 1
   const kept = new Uint8Array(labels.length)
   const boxes = labelBoxes(labels, width, ignoreLabel)
   let done = 0
-  // Final nearest-label pass counts as one more step.
-  const steps = boxes.size + 1
+  // The nearest-label pass and the island pass count as one more step each.
+  const steps = boxes.size + 2
 
   for (const [label, box] of boxes) {
     // Work inside the label's bounding box plus a margin: much cheaper for small regions.
@@ -101,29 +214,25 @@ export function* smoothDetailsSteps(
 
   const nearest = distanceTransform(width, height, kept, true)
   const out = labels.slice()
-  let changed = 0
   if (boxes.size > 0 && kept.includes(1)) {
     for (let p = 0; p < out.length; p++) {
       if (kept[p] || labels[p] === ignoreLabel) continue
-      const l = labels[nearest.nearest![p]!]!
-      if (l !== out[p]) {
-        out[p] = l
-        changed++
-      }
+      out[p] = labels[nearest.nearest![p]!]!
     }
   }
+  yield ++done / steps
+  if (minIslandArea >= 2) removeSmallIslands(out, width, height, minIslandArea, ignoreLabel)
   yield 1
-  return { labels: out, changed }
+  return countChanges(out)
 }
 
 export function smoothDetails(
   labels: Uint8Array,
   width: number,
   height: number,
-  radius: number,
-  ignoreLabel = -1,
+  options: SmoothingOptions,
 ): SmoothingResult {
-  const it = smoothDetailsSteps(labels, width, height, radius, ignoreLabel)
+  const it = smoothDetailsSteps(labels, width, height, options)
   for (;;) {
     const step = it.next()
     if (step.done) return step.value

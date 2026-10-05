@@ -24,7 +24,7 @@ describe('buildHistogram', () => {
     mask.fill(1, 15) // mask out the green pixels
     const h = buildHistogram(px, mask)
     expect(h.opaquePixels).toBe(10)
-    expect(Array.from(h.weights)).toEqual([10])
+    expect(Array.from(h.counts)).toEqual([10])
   })
 
   it('stores the mean colour of each bin', () => {
@@ -34,7 +34,7 @@ describe('buildHistogram', () => {
       [[202, 0, 0], 255, 1],
     ])
     const h = buildHistogram(px)
-    expect(h.weights.length).toBe(1)
+    expect(h.counts.length).toBe(1)
     const q = quantizeHistogram(h, 1)
     expect(q.palette[0]).toEqual([201, 0, 0])
   })
@@ -82,5 +82,25 @@ describe('quantizeHistogram + indexPixels', () => {
     const q = quantizeHistogram(h, 5)
     expect(q.palette).toEqual([])
     expect(Array.from(indexPixels(empty, h, q))).toEqual([255, 255, 255, 255])
+  })
+})
+
+describe('importance weighting', () => {
+  it('lets a small but important colour win a cluster without changing coverage', () => {
+    // 90 grey-ish pixels in two close shades, 10 red pixels; only 2 clusters available.
+    const px = image([
+      [[100, 100, 100], 255, 45],
+      [[140, 140, 140], 255, 45],
+      [[200, 30, 30], 255, 10],
+    ])
+    const plain = quantizeHistogram(buildHistogram(px), 2)
+    // Without weighting the red still separates (it is far away), so check coverage stays exact.
+    expect(plain.counts.reduce((a, b) => a + b, 0)).toBe(100)
+
+    const importance = new Float32Array(100).fill(1)
+    importance.fill(20, 90) // red pixels are 20× more important
+    const weighted = quantizeHistogram(buildHistogram(px, undefined, undefined, importance), 2)
+    expect(weighted.palette.some(([r, g]) => r > 150 && g < 80)).toBe(true)
+    expect(weighted.counts).toEqual([90, 10])
   })
 })

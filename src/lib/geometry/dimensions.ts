@@ -6,10 +6,13 @@ export function pxPerMm(widthPx: number, widthMm: number): number {
   return widthPx / widthMm
 }
 
-/**
- * Radius in pixels of the smallest feature that can be tufted. A detail narrower than
- * `minDetailMm` is removed, so the morphological disk has half that diameter.
- */
-export function detailRadiusPx(minDetailMm: number, pixelsPerMm: number): number {
-  return (minDetailMm / 2) * pixelsPerMm
+/** Radius in pixels of the disk used to remove lines narrower than `minLineWidthMm`. */
+export function lineRadiusPx(minLineWidthMm: number, pixelsPerMm: number): number {
+  return (minLineWidthMm / 2) * pixelsPerMm
+}
+
+/** Area in pixels of a dot `minDetailMm` across: smaller isolated areas are removed. */
+export function minIslandAreaPx(minDetailMm: number, pixelsPerMm: number): number {
+  const r = (minDetailMm / 2) * pixelsPerMm
+  return Math.PI * r * r
 }

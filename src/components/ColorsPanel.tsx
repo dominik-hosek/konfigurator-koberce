@@ -175,7 +175,13 @@ export function ColorsPanel({
             {distinctYarns < clusters.length && <p>{cs.colors.merged}</p>}
             {dropped.length > 0 && <p>{cs.colors.dropped(dropped)}</p>}
             {result.smoothedPixels > 0 && (
-              <p>{cs.colors.smoothed(limitsConfig.minDetailMm, result.layout.widthMm)}</p>
+              <p>
+                {cs.colors.smoothed(
+                  limitsConfig.minLineWidthMm,
+                  limitsConfig.minDetailMm,
+                  result.layout.widthMm,
+                )}
+              </p>
             )}
           </div>
         </div>

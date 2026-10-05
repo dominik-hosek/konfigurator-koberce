@@ -60,6 +60,19 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
     plochy, nebo podle opsaného obdélníku.
   - 103 unit testů.
 
+- **Oprava – portréty a obličeje** (2026-10-05)
+  - Vyhlazení rozděleno na dvě pravidla: linky tenčí než `minLineWidthMm` (zástupně 5 mm)
+    a samostatné plošky menší než tečka o průměru `minDetailMm` (10 mm). Úzké, ale dlouhé
+    rysy (obočí, ústa, oční linky) teď zůstanou; dřív je mazalo pravidlo „vše pod 10 mm“.
+  - Redukce barev váží pixely podle hustoty detailů v okolí a tělové odstíny (YCbCr
+    heuristika, bez AI) ×2 – obličej dostane vlastní odstíny kůže místo sloučení s pozadím.
+    U log se nic nemění (ověřeno: stejné barvy).
+  - Každý shluk barev dostane vlastní přízi, pokud existuje podobná (ΔE do 12 nad nejbližší),
+    místo slučování do jedné.
+  - Zástupná paleta doplněna o 10 tělových/teplých odstínů (Y-030 až Y-039).
+  - Ověřeno na portrétu (NASA, public domain): oči, nos, úsměv a stínování obličeje zůstanou.
+  - 116 unit testů.
+
 ## Rozpracováno
 
 - nic
@@ -79,6 +92,10 @@ Stav projektu po fázích. Aktualizuje se na konci každé fáze.
 - Ovál a kruh kolem motivu se počítají ze středu ohraničujícího obdélníku motivu – u
   nesymetrických motivů nemusí být nejtěsnější možné.
 - Malý motiv na velkém koberci = málo pixelů na cm; náhled je pak hrubší (zdrojové rozlišení).
+- Portréty: kvalita silně závisí na paletě – světlé odstíny kůže bez vlastní příze dostanou
+  nejbližší volnou (v zástupné paletě šedou). Se skutečnou paletou přízí doladit
+  `DISTINCT_YARN_TOLERANCE` (lib/color/yarns.ts) a `SKIN_BOOST` (worker).
+- Portrét 1000 × 1200 px se zpracuje za ~3 s (s průběhem); loga za < 1 s.
 - Ruční volby přízí se resetují při změně počtu barev nebo pozadí (barvy se přepočítají).
 - Na mobilu je náhled nahoře a ovládání pod ním – při úpravách je potřeba scrollovat.
   Řešit ve Fázi 6 (např. přilepený zmenšený náhled).
@@ -92,6 +109,8 @@ Zatím se jede se zástupnými hodnotami (`"_placeholder": true`):
 - [ ] Ceník a příplatky (cena za m², příplatek za barvy, za tvar podle motivu, minimální cena).
       Počítá se kruh/ovál/kontura podle skutečné plochy, nebo opsaného obdélníku?
 - [x] Minimální vytuftovatelný detail: 10 mm potvrzeno.
+- [ ] Minimální šířka linky (obočí, oční linky, obrysy) – zástupně 5 mm.
+- [ ] Maximální počet barev – teď 12; portréty by zvládly víc (např. 16).
 - [ ] Min./max. rozměry koberce a maximální okraj kolem motivu.
 - [ ] Endpoint nebo e-mail pro poptávky (Formspree?).
 - [ ] Kam přesně se konfigurátor vloží na urug.cz (kvůli iframe a CSP/`frame-ancestors`).

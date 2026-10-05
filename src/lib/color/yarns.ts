@@ -51,16 +51,46 @@ export interface YarnAssignment {
 }
 
 /**
- * Assigns a yarn to every cluster colour. `overrides` maps cluster index -> yarn code;
- * unknown codes are ignored so a stale override can never produce an invalid design.
+ * How much worse (ΔE2000) than its nearest yarn a cluster may get so that it keeps its own
+ * yarn instead of sharing one with a similar cluster. Sharing merges the two areas and loses
+ * shading (e.g. light and dark skin tones collapsing into one).
+ */
+export const DISTINCT_YARN_TOLERANCE = 12
+
+/**
+ * Assigns a yarn to every cluster colour, preferring a different yarn for each cluster.
+ * Pairs are matched greedily from the closest (cluster, yarn) pair up; a cluster whose best
+ * free yarn is much worse than its nearest one shares the nearest yarn instead.
+ * `overrides` maps cluster index -> yarn code; unknown codes are ignored so a stale override
+ * can never produce an invalid design.
  */
 export function assignYarns(
   clusterColors: readonly Rgb[],
   yarns: readonly PreparedYarn[],
   overrides: Readonly<Record<number, string>> = {},
 ): YarnAssignment {
+  if (yarns.length === 0) throw new Error('Yarn palette is empty')
   const known = new Set(yarns.map((y) => y.code))
-  const auto = clusterColors.map((c) => nearestYarn(c, yarns).code)
+  const distances = clusterColors.map((c) => {
+    const lab = rgbToLab(c)
+    return yarns.map((y) => deltaE2000(lab, y.lab))
+  })
+
+  const pairs: { c: number; y: number; d: number }[] = []
+  distances.forEach((row, c) => row.forEach((d, y) => pairs.push({ c, y, d })))
+  pairs.sort((a, b) => a.d - b.d)
+
+  const nearest = distances.map((row) => row.indexOf(Math.min(...row)))
+  const chosen = new Array<number>(clusterColors.length).fill(-1)
+  const used = new Set<number>()
+  for (const { c, y, d } of pairs) {
+    if (chosen[c] !== -1 || used.has(y)) continue
+    if (d - distances[c]![nearest[c]!]! > DISTINCT_YARN_TOLERANCE) continue
+    chosen[c] = y
+    used.add(y)
+  }
+
+  const auto = chosen.map((y, c) => yarns[y === -1 ? nearest[c]! : y]!.code)
   const final = auto.map((code, i) => {
     const o = overrides[i]
     return o !== undefined && known.has(o) ? o : code

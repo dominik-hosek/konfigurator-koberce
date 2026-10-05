@@ -88,8 +88,8 @@ export const cs = {
     dropped: (names: string[]) =>
       `Příliš drobné na vytuftování, v koberci nebudou: ${names.join(', ')}.`,
     merged: 'Některé barvy připadly na stejnou přízi, proto se sloučily.',
-    smoothed: (minDetailMm: number, widthMm: number) =>
-      `Detaily menší než ${minDetailMm} mm (při šířce koberce ${cm(widthMm)}) jsme zjednodušili, aby šly vytuftovat.`,
+    smoothed: (minLineMm: number, minDetailMm: number, widthMm: number) =>
+      `Linky tenčí než ${minLineMm} mm a plošky menší než ${minDetailMm} mm (při šířce koberce ${cm(widthMm)}) jsme zjednodušili, aby šly vytuftovat.`,
   },
   shape: {
     legend: 'Tvar koberce',

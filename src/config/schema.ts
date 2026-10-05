@@ -48,7 +48,10 @@ export interface LimitsConfig {
     defaultMm: number
     maxMm: number
   }
+  /** Smallest tuftable area, as the diameter of a dot. */
   minDetailMm: number
+  /** Narrowest tuftable line. */
+  minLineWidthMm: number
 }
 
 export interface InquiryConfig {
@@ -178,6 +181,7 @@ export function parseLimitsConfig(raw: unknown): LimitsConfig {
       maxMm: num(file, margin, 'maxMm', 'margin.maxMm', 0),
     },
     minDetailMm: num(file, o, 'minDetailMm', 'minDetailMm', 0),
+    minLineWidthMm: num(file, o, 'minLineWidthMm', 'minLineWidthMm', 0),
   }
 
   const { colors: c, size: s } = result

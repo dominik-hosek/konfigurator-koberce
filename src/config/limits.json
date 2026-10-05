@@ -1,6 +1,6 @@
 {
   "_placeholder": true,
-  "_comment": "Lengths in mm, file size in MB. margin = space around the motif when the background was removed.",
+  "_comment": "Lengths in mm, file size in MB. minDetailMm = smallest tuftable area (diameter of a dot); minLineWidthMm = narrowest tuftable line. margin = space around the motif when the background was removed.",
   "upload": {
     "maxFileSizeMb": 25,
     "acceptedTypes": ["image/jpeg", "image/png", "image/webp"],
@@ -19,6 +19,7 @@
     "defaultWidthMm": 1200
   },
   "minDetailMm": 10,
+  "minLineWidthMm": 5,
   "margin": {
     "defaultMm": 50,
     "maxMm": 200

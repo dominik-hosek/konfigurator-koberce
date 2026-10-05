@@ -55,8 +55,9 @@ every session and update it at the end of every phase.
 - Worker messages are typed discriminated unions in `src/workers/protocol.ts`. The UI sends
   the full `ProcessSettings` on every change; the worker caches stages (mask → histogram →
   clusters) and abandons a running request at `checkpoint()` when a newer one arrives.
-- Detail smoothing = per-label morphological opening (disk radius = minDetailMm / 2 in px)
-  via exact distance transforms (`lib/image/edt.ts`); the image border never erodes.
+- Detail smoothing = per-label morphological opening (disk radius = minLineWidthMm / 2 in
+  px) via exact distance transforms (`lib/image/edt.ts`), then small-island removal (area of
+  a minDetailMm dot). Keep the two limits separate: portraits need thin-but-long features.
 - React state: a single reducer for the configuration (`src/state`), derived values
   (price, spec) computed with selectors, not stored.
 - Styling: Tailwind utilities, neutral palette, generous whitespace; the customer's rug is
@@ -69,12 +70,14 @@ every session and update it at the end of every phase.
 ```
 file → decode + downscale (≤1024 px)
      → background mask (alpha channel, or click-picked colour + tolerance)
-     → colour quantization (k-means++, 2–12 colours, foreground pixels only)
-     → map clusters to nearest yarns (Lab, CIEDE2000) + manual overrides
+     → colour quantization (k-means++, 2–12 colours, foreground pixels only), weighted by
+       per-pixel importance (local detail density + skin-tone boost) so faces get shades
+     → map clusters to yarns (CIEDE2000, distinct yarns preferred) + manual overrides
      → layout (lib/geometry/layout.ts): 'crop' for full-bleed images, 'enclose' + margin
        for motifs with removed background; gives px/mm and the rug frame
      → compose rug grid (background fill yarn inside, CUT outside the shape)
-     → detail smoothing on the rug grid (CUT is ignored, so outlines stay smooth)
+     → detail smoothing on the rug grid (CUT is ignored, so outlines stay smooth):
+       lines < minLineWidthMm removed by opening, islands < a minDetailMm dot absorbed
      → render: flat preview | tufted preview (procedural pile texture, noise, edge shading)
 ```
 
